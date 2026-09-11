@@ -55,7 +55,28 @@ def test_flush_vide_apres_coup():
 
 
 def test_la_premiere_phrase_sort_avant_la_fin_du_flux():
-    """Le coeur du streaming : ne pas attendre la fin pour parler."""
+    """Le coeur du streaming : la phrase sort avant que la suite n'existe."""
     chunker = SentenceChunker()
-    sorties = chunker.feed("Voici la premiere phrase complete. Et la suite arrive")
-    assert sorties == ["Voici la premiere phrase complete."]
+    premier = chunker.feed("Voici la premiere phrase complete. ")
+    assert premier == ["Voici la premiere phrase complete."]
+    assert chunker.feed("Et la suite arrive") == []
+    assert chunker.flush() == "Et la suite arrive"
+
+
+def test_citation_fermee_coupe_bien():
+    phrases = _tout(SentenceChunker(), 'Il a dit : "Bonjour." Puis il est parti.')
+    assert phrases == ['Il a dit : "Bonjour."', "Puis il est parti."]
+
+
+def test_flux_sans_ponctuation_finit_par_sortir():
+    chunker = SentenceChunker(max_chars=50)
+    phrases = chunker.feed("mot " * 30)
+    assert phrases, "un flux sans ponctuation doit finir par emettre"
+    assert all(len(p) <= 50 for p in phrases)
+
+
+def test_la_coupe_forcee_tombe_sur_un_espace():
+    chunker = SentenceChunker(max_chars=50)
+    for phrase in chunker.feed("alpha beta gamma delta epsilon zeta eta theta iota kappa"):
+        assert not phrase.endswith(" ")
+        assert " " in phrase or len(phrase) < 50

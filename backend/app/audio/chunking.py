@@ -5,6 +5,7 @@ _ABREVIATIONS = {
     "etc", "cf", "ex", "env", "tel", "av", "bd",
 }
 _FINS = ".!?…"
+_FERMANTS = "\"»)]'”’"
 _MOT_FINAL = re.compile(r"([A-Za-zÀ-ÿ]+)\.$")
 
 
@@ -16,8 +17,13 @@ class SentenceChunker:
     # (4 car.) doit fusionner, "Bonjour a tous." (15 car.) doit sortir
     # seule. Toute valeur dans ]4, 15] convient ; au-dela de 15 les deux
     # cas deviennent indiscernables.
-    def __init__(self, min_chars: int = 12) -> None:
+    # max_chars est un filet de securite, pas une regle de segmentation : un
+    # flux sans ponctuation terminale (enumeration, liste a puces, tirets)
+    # ferait sinon grossir le tampon indefiniment et recreerait le silence
+    # que ce composant existe pour supprimer.
+    def __init__(self, min_chars: int = 12, max_chars: int = 400) -> None:
         self.min_chars = min_chars
+        self.max_chars = max_chars
         self._tampon = ""
 
     def feed(self, fragment: str) -> list[str]:
@@ -26,20 +32,36 @@ class SentenceChunker:
         while True:
             phrase = self._extraire()
             if phrase is None:
-                return pretes
+                break
             pretes.append(phrase)
+        while len(self._tampon) > self.max_chars:
+            # Coupe d'urgence sur le dernier espace avant la limite. S'il n'y
+            # a aucun espace (mot unique geant), c'est un cas pathologique :
+            # on n'emet rien et on laisse le tampon deborder.
+            idx_espace = self._tampon[: self.max_chars].rfind(" ")
+            if idx_espace <= 0:
+                break
+            morceau = self._tampon[:idx_espace].strip()
+            self._tampon = self._tampon[idx_espace:].lstrip()
+            if morceau:
+                pretes.append(morceau)
+        return pretes
 
     def _extraire(self) -> str | None:
         for i, c in enumerate(self._tampon):
             if c not in _FINS:
                 continue
-            candidat = self._tampon[: i + 1]
-            suivant = self._tampon[i + 1 : i + 2]
+            fin = i + 1
+            while fin < len(self._tampon) and self._tampon[fin] in _FERMANTS:
+                fin += 1
+            candidat = self._tampon[:fin]
+            suivant = self._tampon[fin : fin + 1]
             if not suivant:
-                # Ce signe est le dernier caractere du tampon : on ne peut pas
-                # encore savoir s'il termine une phrase (". ") ou s'il est
-                # interne (3.14). On attend le caractere suivant. En fin de
-                # flux, c'est flush() qui rendra le reste.
+                # Ce signe (et les guillemets/parentheses fermants qui le
+                # suivent eventuellement) est en bout de tampon : on ne peut
+                # pas encore savoir s'il termine une phrase (". ") ou s'il
+                # est interne (3.14). On attend le caractere suivant. En fin
+                # de flux, c'est flush() qui rendra le reste.
                 return None
             if not suivant.isspace():
                 continue  # ex. 3.14 : le point est interne
@@ -47,7 +69,7 @@ class SentenceChunker:
                 continue  # fragment trop court, on le fusionne avec la suite
             if self._est_abreviation(candidat):
                 continue
-            self._tampon = self._tampon[i + 1 :].lstrip()
+            self._tampon = self._tampon[fin:].lstrip()
             return candidat.strip()
         return None
 
