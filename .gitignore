@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------
+# DONNEES BIOMETRIQUES — ne doivent JAMAIS entrer dans le depot.
+# La voix clonee est une donnee irrecuperable une fois diffusee.
+# ---------------------------------------------------------------
+/data/
+/voices/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.webm
+*.sqlite
+*.sqlite3
+*.db
+
+# Poids de modeles (volumineux, retelecharges a l'installation)
+/models/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.gguf
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+.pnpm-store/
+
+# Outils et OS
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.log
