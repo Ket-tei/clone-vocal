@@ -771,7 +771,9 @@ Sans ce composant, le streaming est impossible et l'utilisateur attend 5 à 8 s 
 
 **Interfaces:**
 - Consumes: rien
-- Produces: `SentenceChunker(min_chars: int = 25)` avec `feed(fragment: str) -> list[str]` (renvoie les phrases complètes disponibles) et `flush() -> str | None` (renvoie le reste).
+- Produces: `SentenceChunker(min_chars: int = 12)` avec `feed(fragment: str) -> list[str]` (renvoie les phrases complètes disponibles) et `flush() -> str | None` (renvoie le reste).
+
+**Choix de `min_chars = 12`.** Le seuil sert à éviter qu'un fragment trop court parte seul au TTS, où il sonnerait coupé. Il est borné par les tests eux-mêmes : `"Oui."` (4 caractères) doit fusionner avec la suite, `"Bonjour a tous."` (15 caractères) doit sortir seule. Toute valeur dans l'intervalle `]4, 15]` convient ; 12 laisse de la marge des deux côtés. Une valeur supérieure à 15 rend les deux tests contradictoires — c'est le défaut corrigé au blocage de la tâche 5.
 
 - [ ] **Step 1: Écrire les tests (ils doivent échouer)**
 
@@ -851,7 +853,7 @@ _MOT_FINAL = re.compile(r"([A-Za-zÀ-ÿ]+)\.$")
 class SentenceChunker:
     """Assemble un flux de fragments en phrases prononcables."""
 
-    def __init__(self, min_chars: int = 25) -> None:
+    def __init__(self, min_chars: int = 12) -> None:
         self.min_chars = min_chars
         self._tampon = ""
 
