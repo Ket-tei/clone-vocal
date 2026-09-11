@@ -1,3 +1,6 @@
+import sqlite3
+from unittest.mock import MagicMock
+
 import pytest
 
 from app.audio.validation import AudioMetrics
@@ -42,3 +45,14 @@ def test_delete_efface_vraiment_le_fichier(store):
 
 def test_delete_inconnu_renvoie_false(store):
     assert store.delete("inexistant") is False
+
+def test_create_supprime_le_fichier_si_insert_echoue(store):
+    mock_conn = MagicMock()
+    mock_conn.execute.side_effect = sqlite3.Error("Simulated error")
+    store.conn = mock_conn
+
+    with pytest.raises(sqlite3.Error):
+        store.create("Test", b"x", METRIQUES)
+
+    # Vérifier qu'aucun fichier n'a été laissé orphelin
+    assert len(list(store.voices_dir.glob("*.wav"))) == 0

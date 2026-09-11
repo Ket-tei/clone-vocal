@@ -40,12 +40,18 @@ class VoiceStore:
             peak_dbfs=metrics.peak_dbfs,
             engine=engine,
         )
-        self.conn.execute(
-            "INSERT INTO voice_profiles VALUES (:id, :label, :created_at, :sample_path,"
-            " :duration_s, :snr_db, :peak_dbfs, :engine)",
-            profil.__dict__,
-        )
-        self.conn.commit()
+        try:
+            self.conn.execute(
+                "INSERT INTO voice_profiles (id, label, created_at, sample_path,"
+                " duration_s, snr_db, peak_dbfs, engine)"
+                " VALUES (:id, :label, :created_at, :sample_path,"
+                " :duration_s, :snr_db, :peak_dbfs, :engine)",
+                profil.__dict__,
+            )
+            self.conn.commit()
+        except Exception:
+            chemin.unlink(missing_ok=True)
+            raise
         return profil
 
     def get(self, profil_id: str) -> VoiceProfile | None:
