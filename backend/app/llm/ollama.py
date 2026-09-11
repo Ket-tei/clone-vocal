@@ -37,7 +37,14 @@ class OllamaClient:
                     async for ligne in reponse.aiter_lines():
                         if not ligne.strip():
                             continue
-                        bloc = json.loads(ligne)
+                        try:
+                            bloc = json.loads(ligne)
+                        except json.JSONDecodeError as err:
+                            raise RuntimeError(
+                                "Reponse illisible d'Ollama : le flux a ete "
+                                "interrompu ou le service a redemarre en "
+                                "cours de generation."
+                            ) from err
                         morceau = bloc.get("message", {}).get("content", "")
                         if morceau:
                             yield morceau
@@ -58,6 +65,8 @@ class FakeLlmClient:
     async def stream_chat(self, messages: list[Message]) -> AsyncIterator[str]:
         self.derniers_messages = messages
         texte = self._reponses.pop(0) if self._reponses else ""
+        if not texte:
+            return
         mots = texte.split(" ")
         for i, mot in enumerate(mots):
             yield mot if i == len(mots) - 1 else mot + " "

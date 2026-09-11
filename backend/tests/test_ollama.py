@@ -24,6 +24,20 @@ async def test_fake_memorise_les_messages_recus():
     assert fake.derniers_messages == messages
 
 
+async def test_fake_memorise_les_messages_des_le_premier_morceau():
+    """La tache 11 lit le prompt injecte sans consommer tout le flux."""
+    fake = FakeLlmClient(["bonjour tout le monde"])
+    messages = [{"role": "user", "content": "contexte prospect"}]
+    flux = fake.stream_chat(messages)
+    await flux.__anext__()
+    assert fake.derniers_messages == messages
+
+
+async def test_fake_liste_epuisee_n_emet_rien():
+    fake = FakeLlmClient([])
+    assert await _collecter(fake, [{"role": "user", "content": "x"}]) == []
+
+
 async def test_ollama_agrege_les_lignes_ndjson():
     lignes = [
         json.dumps({"message": {"content": "Bon"}, "done": False}),
@@ -55,3 +69,21 @@ async def test_ollama_leve_une_erreur_explicite_si_service_absent():
     client = OllamaClient("http://x", "modele", transport=transport)
     with pytest.raises(RuntimeError, match="Ollama"):
         await _collecter(client, [{"role": "user", "content": "s"}])
+
+
+async def test_ollama_leve_une_erreur_si_ligne_ndjson_tronquee():
+    """Simule ollama serve tue/redemarre en cours de generation : la derniere
+    ligne NDJSON arrive tronquee. Le morceau valide recu avant la coupure ne
+    doit pas etre perdu silencieusement."""
+    lignes = [
+        json.dumps({"message": {"content": "Bon"}, "done": False}),
+        '{"message": {"content": "jour"}, "done": fal',
+    ]
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, text="\n".join(lignes)))
+    client = OllamaClient("http://x", "modele", transport=transport)
+    flux = client.stream_chat([{"role": "user", "content": "s"}])
+    recus = []
+    with pytest.raises(RuntimeError, match="Ollama"):
+        async for morceau in flux:
+            recus.append(morceau)
+    assert recus == ["Bon"]
