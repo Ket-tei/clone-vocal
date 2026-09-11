@@ -771,7 +771,9 @@ Sans ce composant, le streaming est impossible et l'utilisateur attend 5 à 8 s 
 
 **Interfaces:**
 - Consumes: rien
-- Produces: `SentenceChunker(min_chars: int = 12)` avec `feed(fragment: str) -> list[str]` (renvoie les phrases complètes disponibles) et `flush() -> str | None` (renvoie le reste).
+- Produces: `SentenceChunker(min_chars: int = 12, max_chars: int = 400)` avec `feed(fragment: str) -> list[str]` (renvoie les phrases complètes disponibles) et `flush() -> str | None` (renvoie le reste).
+
+**Le code livré fait autorité sur ce bloc.** La relecture a imposé trois corrections que ce plan ne décrivait pas : les signes fermants (`"`, `»`, `)`, `'`…) sont sautés avant le test d'espace, faute de quoi une citation terminée ne coupait jamais ; une borne `max_chars` force une coupe sur le dernier espace, faute de quoi un flux sans ponctuation terminale n'émettait rien avant la fin ; et le test central a été réécrit en deux appels `feed()` successifs, parce que l'ancienne version passait aussi bien sur une implémentation qui aurait tout tamponné. Voir `backend/app/audio/chunking.py`.
 
 **Choix de `min_chars = 12`.** Le seuil sert à éviter qu'un fragment trop court parte seul au TTS, où il sonnerait coupé. Il est borné par les tests eux-mêmes : `"Oui."` (4 caractères) doit fusionner avec la suite, `"Bonjour a tous."` (15 caractères) doit sortir seule. Toute valeur dans l'intervalle `]4, 15]` convient ; 12 laisse de la marge des deux côtés. Une valeur supérieure à 15 rend les deux tests contradictoires — c'est le défaut corrigé au blocage de la tâche 5.
 
