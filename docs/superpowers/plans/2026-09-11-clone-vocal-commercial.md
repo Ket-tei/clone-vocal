@@ -872,7 +872,13 @@ class SentenceChunker:
                 continue
             candidat = self._tampon[: i + 1]
             suivant = self._tampon[i + 1 : i + 2]
-            if suivant and not suivant.isspace():
+            if not suivant:
+                # Ce signe est le dernier caractere du tampon : on ne peut pas
+                # encore savoir s'il termine une phrase (". " ) ou s'il est
+                # interne (3.14). On attend le caractere suivant. En fin de
+                # flux, c'est flush() qui rendra le reste.
+                return None
+            if not suivant.isspace():
                 continue  # ex. 3.14 : le point est interne
             if len(candidat.strip()) < self.min_chars:
                 continue  # fragment trop court, on le fusionne avec la suite
