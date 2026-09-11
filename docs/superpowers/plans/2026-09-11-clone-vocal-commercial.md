@@ -1139,20 +1139,18 @@ class MeetingBrief(BaseModel):
     tone: str = Field(default="professionnel et direct", max_length=200)
     target_duration_min: int = Field(default=10, ge=1, le=60)
 
-    @field_validator("prospect_name", "company", "role", "stake", "goal", "tone")
+    @field_validator("role", "tone")
     @classmethod
     def _nettoyer(cls, v: str) -> str:
-        nettoye = v.strip()
-        if not nettoye and cls.model_fields["prospect_name"].is_required():
-            pass
-        return nettoye
+        return v.strip()
 
     @field_validator("prospect_name", "company", "stake", "goal")
     @classmethod
     def _non_vide(cls, v: str) -> str:
-        if not v.strip():
+        nettoye = v.strip()
+        if not nettoye:
             raise ValueError("Ce champ ne peut pas etre vide.")
-        return v.strip()
+        return nettoye
 ```
 
 - [ ] **Step 4: Lancer et vérifier le succès du brief**
@@ -2545,14 +2543,48 @@ git commit -m "feat: socle frontend Next.js, client API et ecran d'accueil"
 
 **Interfaces:**
 - Consumes: `analyzeSample`, `createProfile`, `previewVoice` (tâche 13)
-- Produces: `lib/audio.ts` exportant `SCRIPT_LECTURE: string`, `rmsToDbfs(rms: number): number`, `AudioQueue` (classe avec `push(blob: Blob)`, `stop()`, `get isPlaying(): boolean`).
+- Produces: `lib/audio.ts` exportant `SCRIPT_LECTURE: string`, `rmsToDbfs(rms: number): number`, `encodeWav(samples: Float32Array, sampleRate: number): Blob`, `webmToWav(blob: Blob): Promise<Blob>`, `AudioQueue` (classe avec `push(blob: Blob)`, `stop()`, `get isPlaying(): boolean`).
+
+**Contrainte de format — corrigée au scan pré-vol.** `libsndfile`, utilisé par `soundfile` en tâche 3, **ne décode pas le WebM** que produit `MediaRecorder`. L'échantillon doit donc être converti en WAV **dans le navigateur** avant l'envoi. `webmToWav` s'appuie sur `AudioContext.decodeAudioData` — le navigateur décode nativement son propre WebM — et rééchantillonne à 24 kHz mono en créant le contexte à cette fréquence. Aucune dépendance nouvelle, ni côté client ni côté serveur.
 
 - [ ] **Step 1: Écrire les tests (ils doivent échouer)**
 
 ```typescript
 // frontend/lib/audio.test.ts
 import { describe, expect, it } from "vitest";
-import { SCRIPT_LECTURE, rmsToDbfs } from "./audio";
+import { SCRIPT_LECTURE, encodeWav, rmsToDbfs } from "./audio";
+
+describe("encodeWav", () => {
+  async function entete(blob: Blob) {
+    return new DataView(await blob.arrayBuffer());
+  }
+
+  it("produit un en-tete RIFF/WAVE", async () => {
+    const vue = await entete(encodeWav(new Float32Array(10), 24000));
+    const lire = (o: number) =>
+      String.fromCharCode(...[0, 1, 2, 3].map((i) => vue.getUint8(o + i)));
+    expect(lire(0)).toBe("RIFF");
+    expect(lire(8)).toBe("WAVE");
+  });
+
+  it("declare mono, 16 bits, a la frequence demandee", async () => {
+    const vue = await entete(encodeWav(new Float32Array(10), 24000));
+    expect(vue.getUint16(22, true)).toBe(1); // canaux
+    expect(vue.getUint32(24, true)).toBe(24000); // frequence
+    expect(vue.getUint16(34, true)).toBe(16); // bits par echantillon
+  });
+
+  it("ecrit deux octets par echantillon", async () => {
+    const blob = encodeWav(new Float32Array(100), 24000);
+    expect(blob.size).toBe(44 + 200);
+  });
+
+  it("borne les valeurs hors de l'intervalle [-1, 1]", async () => {
+    const vue = await entete(encodeWav(new Float32Array([2, -2]), 24000));
+    expect(vue.getInt16(44, true)).toBe(32767);
+    expect(vue.getInt16(46, true)).toBe(-32768);
+  });
+});
 
 describe("rmsToDbfs", () => {
   it("convertit un signal pleine echelle en 0 dBFS", () => {
@@ -2608,6 +2640,52 @@ export function rmsToDbfs(rms: number): number {
   return 20 * Math.log10(Math.max(rms, 1e-10));
 }
 
+export const TAUX_CIBLE = 24000;
+
+/** Encode du PCM flottant en WAV mono 16 bits. libsndfile ne lit pas le WebM. */
+export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+  const tampon = new ArrayBuffer(44 + samples.length * 2);
+  const vue = new DataView(tampon);
+  const texte = (offset: number, valeur: string) => {
+    for (let i = 0; i < valeur.length; i++) vue.setUint8(offset + i, valeur.charCodeAt(i));
+  };
+
+  texte(0, "RIFF");
+  vue.setUint32(4, 36 + samples.length * 2, true);
+  texte(8, "WAVE");
+  texte(12, "fmt ");
+  vue.setUint32(16, 16, true); // taille du bloc fmt
+  vue.setUint16(20, 1, true); // PCM entier
+  vue.setUint16(22, 1, true); // mono
+  vue.setUint32(24, sampleRate, true);
+  vue.setUint32(28, sampleRate * 2, true); // octets par seconde
+  vue.setUint16(32, 2, true); // alignement de bloc
+  vue.setUint16(34, 16, true); // bits par echantillon
+  texte(36, "data");
+  vue.setUint32(40, samples.length * 2, true);
+
+  for (let i = 0; i < samples.length; i++) {
+    const borne = Math.max(-1, Math.min(1, samples[i]));
+    vue.setInt16(44 + i * 2, borne < 0 ? borne * 0x8000 : borne * 0x7fff, true);
+  }
+  return new Blob([tampon], { type: "audio/wav" });
+}
+
+/**
+ * Convertit l'enregistrement WebM de MediaRecorder en WAV 24 kHz mono.
+ * Le navigateur decode nativement son propre WebM ; creer le contexte a la
+ * frequence cible fait le reechantillonnage au passage.
+ */
+export async function webmToWav(blob: Blob): Promise<Blob> {
+  const ctx = new AudioContext({ sampleRate: TAUX_CIBLE });
+  try {
+    const decode = await ctx.decodeAudioData(await blob.arrayBuffer());
+    return encodeWav(decode.getChannelData(0), decode.sampleRate);
+  } finally {
+    void ctx.close();
+  }
+}
+
 /** Lit des extraits audio strictement dans l'ordre d'arrivee. */
 export class AudioQueue {
   private file: Blob[] = [];
@@ -2655,7 +2733,9 @@ export class AudioQueue {
 - [ ] **Step 4: Lancer et vérifier le succès**
 
 Run: `cd frontend && npx vitest run lib/audio.test.ts`
-Expected: PASS, 6 tests
+Expected: PASS, 10 tests
+
+Note : les tests de `encodeWav` tournent sous l'environnement `jsdom` de vitest. `webmToWav` n'est pas testé unitairement — il dépend du décodeur natif du navigateur, absent de jsdom ; il est vérifié à la main lors du premier onboarding réel.
 
 - [ ] **Step 5: Écrire le vumètre**
 
@@ -2763,7 +2843,7 @@ import { MicLevelMeter } from "@/components/MicLevelMeter";
 import { QualityReport } from "@/components/QualityReport";
 import { Button } from "@/components/ui/button";
 import { analyzeSample, createProfile, previewVoice, type AnalyzeResult } from "@/lib/api";
-import { SCRIPT_LECTURE } from "@/lib/audio";
+import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 
 type Etape = "micro" | "lecture" | "controle" | "validation";
 
@@ -2796,10 +2876,11 @@ export default function Onboarding() {
     const mr = new MediaRecorder(stream);
     mr.ondataavailable = (e) => morceaux.current.push(e.data);
     mr.onstop = async () => {
-      const blob = new Blob(morceaux.current, { type: "audio/webm" });
-      setEnregistre(blob);
       setOccupe(true);
-      setResultat(await analyzeSample(new File([blob], "e.webm")));
+      // Obligatoire : soundfile ne lit pas le WebM produit par MediaRecorder.
+      const wav = await webmToWav(new Blob(morceaux.current, { type: "audio/webm" }));
+      setEnregistre(wav);
+      setResultat(await analyzeSample(new File([wav], "e.wav", { type: "audio/wav" })));
       setOccupe(false);
       setEtape("controle");
     };
@@ -2811,7 +2892,9 @@ export default function Onboarding() {
   async function enregistrerProfil() {
     if (!enregistre) return;
     setOccupe(true);
-    const profil = await createProfile(new File([enregistre], "e.webm"), "Ma voix");
+    const profil = await createProfile(
+      new File([enregistre], "e.wav", { type: "audio/wav" }), "Ma voix"
+    );
     const audio = await previewVoice(
       profil.id,
       "Bonjour, je suis ravi d'échanger avec vous aujourd'hui sur votre projet."
