@@ -1770,7 +1770,10 @@ def client(tmp_path):
     app.dependency_overrides[deps.get_tts] = lambda: tts
     app.dependency_overrides[deps.get_llm] = lambda: llm
     app.dependency_overrides[deps.get_transcriber_dep] = lambda: stt
-    yield TestClient(app)
+    # Le gestionnaire de contexte est obligatoire : sans lui, Starlette n'emet
+    # jamais le scope lifespan et le demarrage de l'application ne s'execute pas.
+    with TestClient(app) as testeur:
+        yield testeur
     app.dependency_overrides.clear()
 ```
 
