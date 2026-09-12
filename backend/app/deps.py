@@ -24,11 +24,11 @@ def _llm() -> LlmClient:
 
 @lru_cache
 def _tts() -> TtsEngine:
-    return get_engine("chatterbox")
+    return get_engine(get_settings().tts_engine)
 
 @lru_cache
 def _stt() -> Transcriber:
-    return get_transcriber("kyutai")
+    return get_transcriber(get_settings().stt_engine)
 
 def get_store() -> VoiceStore:
     return _store()

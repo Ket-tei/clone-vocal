@@ -15,6 +15,10 @@ import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 
 type Etape = "micro" | "lecture" | "controle" | "validation";
 
+// Vrai lorsque l'application tourne sans GPU (demonstration d'interface) :
+// la synthese rend alors un audio silencieux, il faut le dire a l'utilisateur.
+const MODE_DEMO = process.env.NEXT_PUBLIC_MODE_DEMO === "1";
+
 function messageErreur(e: unknown, repli: string): string {
   if (e instanceof Error) return e.message;
   if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
@@ -255,10 +259,23 @@ export default function Onboarding() {
 
       {etape === "validation" && (
         <section className="space-y-4">
-          <p className="text-lg">
-            Écoutez : voici votre voix prononçant une phrase que vous n&apos;avez pas
-            enregistrée.
-          </p>
+          {MODE_DEMO ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+              <p className="font-medium text-amber-700 dark:text-amber-400">
+                Synthèse vocale indisponible sur ce serveur.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Cette démonstration tourne sans carte graphique : l&apos;extrait que
+                vous venez d&apos;entendre est silencieux. Votre enregistrement a bien
+                été analysé et accepté — seule la synthèse exige un GPU.
+              </p>
+            </div>
+          ) : (
+            <p className="text-lg">
+              Écoutez : voici votre voix prononçant une phrase que vous n&apos;avez pas
+              enregistrée.
+            </p>
+          )}
           <p className="text-muted-foreground">
             Si le résultat ne vous convainc pas, refaites l&apos;enregistrement dans un
             endroit plus calme. Recommencer efface la voix qui vient d&apos;être créée.

@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_timeout_s: float = 120.0
+    # Moteurs a utiliser. Les valeurs par defaut sont celles de production ;
+    # "fake" permet de faire tourner l'application sur une machine sans GPU
+    # (demonstration d'interface), ou la synthese rend un audio silencieux.
+    tts_engine: str = "chatterbox"
+    stt_engine: str = "kyutai"
 
     @property
     def voices_dir(self) -> Path:
