@@ -17,6 +17,14 @@ router = APIRouter(prefix="/api/qa", tags=["qa"])
 
 _CONTEXTE_MANQUANT = "Contexte de reunion non initialise."
 
+# Un moteur TTS ne leve pas que des RuntimeError : ValueError sur un texte
+# vide, OSError si l'echantillon vocal a disparu du disque. Laisser passer
+# l'une d'elles fermait brutalement le WebSocket et figeait l'interface, la ou
+# l'utilisateur doit recevoir un message et pouvoir continuer a poser des
+# questions. On reste sur des exceptions nommees : un except Exception
+# masquerait les vrais defauts de programmation.
+ERREURS_GENERATION = (RuntimeError, ValueError, OSError)
+
 
 async def emettre_phrase(
     websocket: WebSocket, tts: TtsEngine, phrase: str, profil: VoiceProfile
@@ -117,12 +125,17 @@ async def boucle_qa(
                         {"type": "error", "message": _CONTEXTE_MANQUANT}
                     )
                     continue
-                for bloc in script.blocks:
-                    # Un chunker neuf par bloc : sans cela, un bloc qui ne se
-                    # termine pas par une ponctuation forte deborderait sur le
-                    # suivant et les deux seraient prononces d'un seul souffle.
-                    for phrase in decouper(bloc.text):
-                        await emettre_phrase(websocket, tts, phrase, profil)
+                try:
+                    for bloc in script.blocks:
+                        # Un chunker neuf par bloc : sans cela, un bloc qui ne
+                        # se termine pas par une ponctuation forte deborderait
+                        # sur le suivant et les deux seraient prononces d'un
+                        # seul souffle.
+                        for phrase in decouper(bloc.text):
+                            await emettre_phrase(websocket, tts, phrase, profil)
+                except ERREURS_GENERATION as err:
+                    await websocket.send_json({"type": "error", "message": str(err)})
+                    continue
                 # La presentation n'entre PAS dans l'historique : ce n'est pas
                 # un echange, et build_answer_messages injecte deja le script
                 # complet dans le contexte du modele.
@@ -154,6 +167,7 @@ async def boucle_qa(
                 reponse_complete: list[str] = []
 
                 messages = build_answer_messages(brief, script, historique, question)
+                echec: str | None = None
                 try:
                     async for morceau in llm.stream_chat(messages):
                         for phrase in chunker.feed(morceau):
@@ -163,12 +177,23 @@ async def boucle_qa(
                     if reste:
                         reponse_complete.append(reste)
                         await emettre_phrase(websocket, tts, reste, profil)
-                except RuntimeError as err:
-                    await websocket.send_json({"type": "error", "message": str(err)})
+                except ERREURS_GENERATION as err:
+                    echec = str(err)
+
+                # L'historique enregistre ce qui a ETE prononce, meme quand la
+                # generation s'interrompt en cours de route. Sans cela le
+                # modele oublierait une reponse que le prospect vient
+                # d'entendre et se contredirait au tour suivant.
+                if echec is None or reponse_complete:
+                    historique.append({"role": "user", "content": question})
+                    historique.append(
+                        {"role": "assistant", "content": " ".join(reponse_complete)}
+                    )
+
+                if echec is not None:
+                    await websocket.send_json({"type": "error", "message": echec})
                     continue
 
-                historique.append({"role": "user", "content": question})
-                historique.append({"role": "assistant", "content": " ".join(reponse_complete)})
                 await websocket.send_json({"type": "done"})
                 continue
 

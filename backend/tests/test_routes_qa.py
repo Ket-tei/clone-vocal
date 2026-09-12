@@ -230,3 +230,80 @@ def test_present_n_entre_pas_dans_l_historique(client, wav_valide, llm_espion):
     # tour assistant issu de la presentation.
     roles = [m["role"] for m in llm_espion.derniers_messages]
     assert "assistant" not in roles, llm_espion.derniers_messages
+
+async def test_un_tts_qui_leve_hors_runtimeerror_ne_tue_pas_la_connexion(
+    client, wav_valide
+):
+    """FakeTtsEngine et ChatterboxEngine levent ValueError sur un texte vide,
+    et un echantillon disparu du disque donnerait une OSError. Avec un except
+    limite a RuntimeError, ces cas fermaient brutalement le WebSocket et
+    figeaient l'interface."""
+
+    class TtsQuiCasse:
+        def synthesize(self, text, profile):
+            raise ValueError("Le texte a synthetiser est vide.")
+
+    app.dependency_overrides[deps.get_tts] = lambda: TtsQuiCasse()
+    profil_id = _profil(client, wav_valide)
+
+    with client.websocket_connect(f"/api/qa/{profil_id}") as ws:
+        ws.send_json({"type": "context", "brief": BRIEF, "script": SCRIPT})
+        ws.send_json({"type": "question", "text": "Quel est le prix ?"})
+        for _ in range(20):
+            message = ws.receive_json()
+            if message["type"] == "error":
+                break
+        else:
+            raise AssertionError("aucun message error recu")
+        assert "vide" in message["message"]
+
+        # La connexion doit rester utilisable apres l'erreur.
+        ws.send_json({"type": "type_inconnu"})
+        assert ws.receive_json()["type"] == "error"
+
+async def test_l_historique_retient_ce_qui_a_ete_prononce_malgre_un_echec(
+    client, wav_valide
+):
+    """Quand le LLM lache apres avoir emis des phrases, celles-ci ont deja ete
+    prononcees devant le prospect. Les oublier ferait se contredire le modele
+    au tour suivant."""
+
+    class LlmQuiLache:
+        def __init__(self) -> None:
+            self.derniers_messages: list = []
+            self.tours = 0
+
+        async def stream_chat(self, messages):
+            self.derniers_messages = messages
+            self.tours += 1
+            if self.tours == 1:
+                yield "Notre offre demarre a mille euros. "
+                raise RuntimeError("Ollama a coupe la connexion.")
+            yield "Je confirme ce que je viens de dire. "
+
+    llm = LlmQuiLache()
+    app.dependency_overrides[deps.get_llm] = lambda: llm
+    profil_id = _profil(client, wav_valide)
+
+    with client.websocket_connect(f"/api/qa/{profil_id}") as ws:
+        ws.send_json({"type": "context", "brief": BRIEF, "script": SCRIPT})
+
+        ws.send_json({"type": "question", "text": "Quel est le prix ?"})
+        prononcees = []
+        for _ in range(20):
+            message = ws.receive_json()
+            if message["type"] == "sentence":
+                prononcees.append(message["text"])
+            if message["type"] in ("error", "done"):
+                break
+        assert message["type"] == "error"
+        assert any("mille euros" in p for p in prononcees), prononcees
+
+        ws.send_json({"type": "question", "text": "Vous confirmez ?"})
+        while ws.receive_json()["type"] != "done":
+            pass
+
+    corps = [m["content"] for m in llm.derniers_messages]
+    assert any("mille euros" in c for c in corps), (
+        "la phrase deja prononcee doit figurer dans l'historique du second tour"
+    )

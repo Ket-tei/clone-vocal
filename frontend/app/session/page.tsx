@@ -84,6 +84,8 @@ export default function PageSession() {
     const fileAudio = queue.current;
     const socket = new WebSocket(qaSocketUrl(ctx.profilId));
     ws.current = socket;
+    // Distingue notre propre fermeture (demontage) d'une fermeture subie.
+    let fermetureVoulue = false;
 
     socket.onopen = () => {
       socket.send(JSON.stringify({ type: "context", brief: ctx.brief, script: ctx.script }));
@@ -130,7 +132,23 @@ export default function PageSession() {
     socket.onerror = () =>
       setErreur("Connexion au backend perdue. Vérifiez qu'il tourne sur le port 8000.");
 
+    // Sans ce gestionnaire, une fermeture subie (le backend a leve une
+    // exception non rattrapee pendant la synthese, par exemple) laissait
+    // l'interface figee : boutons actifs, envois silencieusement perdus,
+    // aucun message. On desactive la session et on dit quoi faire.
+    socket.onclose = () => {
+      if (fermetureVoulue) return;
+      setPret(false);
+      setPresentationEnCours(false);
+      setMicEtat("inactif");
+      setErreur(
+        "La connexion au backend s'est fermée. Rechargez la page pour reprendre " +
+          "la session (votre brief et votre script sont conservés)."
+      );
+    };
+
     return () => {
+      fermetureVoulue = true;
       socket.close();
       // Sans cet arret, l'audio deja en file continuerait a jouer apres
       // avoir quitte la page.

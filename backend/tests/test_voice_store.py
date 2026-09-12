@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -56,3 +57,28 @@ def test_create_supprime_le_fichier_si_insert_echoue(store):
 
     # Vérifier qu'aucun fichier n'a été laissé orphelin
     assert len(list(store.voices_dir.glob("*.wav"))) == 0
+
+def test_delete_conserve_la_ligne_si_le_fichier_resiste(store, monkeypatch):
+    """Un .wav verrouille (sous Windows, un fichier encore ouvert par le moteur
+    TTS suffit) ne doit pas laisser un echantillon biometrique orphelin,
+    invisible et ineffacable depuis l'application. La ligne survit, donc le
+    profil reste visible et l'utilisateur peut reessayer."""
+    profil = store.create("Ma voix", b"x", METRIQUES)
+    chemin = store.voices_dir / f"{profil.id}.wav"
+
+    def unlink_impossible(self, missing_ok=False):
+        raise PermissionError("fichier verrouille par un autre processus")
+
+    monkeypatch.setattr(Path, "unlink", unlink_impossible)
+    with pytest.raises(PermissionError):
+        store.delete(profil.id)
+    monkeypatch.undo()
+
+    assert store.get(profil.id) is not None, (
+        "la ligne doit survivre : sinon l'echantillon reste sur le disque "
+        "sans aucun moyen de le retrouver"
+    )
+    assert chemin.exists()
+    # Et une nouvelle tentative, elle, aboutit.
+    assert store.delete(profil.id) is True
+    assert not chemin.exists()

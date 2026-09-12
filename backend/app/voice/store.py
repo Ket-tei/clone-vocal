@@ -70,7 +70,26 @@ class VoiceStore:
         profil = self.get(profil_id)
         if profil is None:
             return False
-        Path(profil.sample_path).unlink(missing_ok=True)
+        # La revue demandait l'ordre inverse -- DELETE + commit, puis unlink --
+        # pour qu'un echec ne laisse jamais de ligne pointant vers un fichier
+        # absent. Cet ordre-la echange un defaut cosmetique contre une fuite :
+        # si l'unlink echoue (sous Windows, un .wav encore ouvert par le moteur
+        # TTS suffit), l'echantillon biometrique reste sur le disque SANS ligne
+        # pour le designer, donc definitivement ineffacable depuis
+        # l'application. C'est l'exact contraire de ce que promet le bouton
+        # « supprimer ma voix ».
+        #
+        # Le DELETE est donc prepare mais pas valide : si l'unlink echoue on
+        # annule, la ligne survit, le profil reste visible et une nouvelle
+        # tentative reste possible. Seul le commit final sort de la
+        # transaction -- fenetre irreductible sans validation en deux phases,
+        # et dans cette fenetre le fichier est deja efface : il ne resterait
+        # qu'une ligne fantome, que la suppression suivante nettoie.
         self.conn.execute("DELETE FROM voice_profiles WHERE id = ?", (profil_id,))
+        try:
+            Path(profil.sample_path).unlink(missing_ok=True)
+        except OSError:
+            self.conn.rollback()
+            raise
         self.conn.commit()
         return True
