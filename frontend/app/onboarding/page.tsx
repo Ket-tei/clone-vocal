@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { MicLevelMeter } from "@/components/MicLevelMeter";
 import { QualityReport } from "@/components/QualityReport";
 import { Button } from "@/components/ui/button";
-import { analyzeSample, createProfile, previewVoice, type AnalyzeResult } from "@/lib/api";
+import {
+  analyzeSample,
+  createProfile,
+  deleteProfile,
+  previewVoice,
+  type AnalyzeResult,
+} from "@/lib/api";
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 
 type Etape = "micro" | "lecture" | "controle" | "validation";
@@ -28,6 +34,10 @@ export default function Onboarding() {
   const morceaux = useRef<Blob[]>([]);
   const webmBrut = useRef<Blob | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Identifiant du profil deja cree lors d'une tentative precedente. Sans lui,
+  // "Recommencer" laisserait un echantillon de la voix sur le disque a chaque
+  // passage : deux enregistrements = deux WAV biometriques conserves.
+  const profilCree = useRef<string | null>(null);
 
   useEffect(() => {
     streamRef.current = stream;
@@ -58,8 +68,33 @@ export default function Onboarding() {
     setStream(null);
   }
 
-  function recommencer() {
+  /**
+   * Repart de zero en effacant d'abord le profil deja cree. En cas d'echec on
+   * reste sur place avec un message : redemarrer en silence laisserait
+   * l'utilisateur croire que son ancien enregistrement a disparu.
+   */
+  async function recommencer() {
     setErreurTraitement(null);
+    const ancien = profilCree.current;
+    if (ancien) {
+      setOccupe(true);
+      try {
+        await deleteProfile(ancien);
+        profilCree.current = null;
+      } catch (e) {
+        setErreurTraitement(
+          messageErreur(
+            e,
+            "Impossible de supprimer l'enregistrement précédent."
+          ) + " Votre ancienne voix est peut-être toujours sur le disque ; réessayez."
+        );
+        return;
+      } finally {
+        setOccupe(false);
+      }
+    }
+    setEnregistre(null);
+    setResultat(null);
     setEtape("micro");
   }
 
@@ -110,6 +145,7 @@ export default function Onboarding() {
       const profil = await createProfile(
         new File([enregistre], "e.wav", { type: "audio/wav" }), "Ma voix"
       );
+      profilCree.current = profil.id;
       const audioBlob = await previewVoice(
         profil.id,
         "Bonjour, je suis ravi d'échanger avec vous aujourd'hui sur votre projet."
@@ -184,7 +220,7 @@ export default function Onboarding() {
                 >
                   {occupe ? "Nouvelle tentative..." : "Réessayer"}
                 </Button>
-                <Button variant="secondary" onClick={recommencer}>
+                <Button variant="secondary" onClick={() => void recommencer()}>
                   Recommencer
                 </Button>
               </div>
@@ -210,7 +246,7 @@ export default function Onboarding() {
                   : "Créer ma voix"}
             </Button>
           ) : (
-            <Button onClick={recommencer} variant="secondary">
+            <Button onClick={() => void recommencer()} variant="secondary">
               Recommencer
             </Button>
           )}
@@ -225,12 +261,21 @@ export default function Onboarding() {
           </p>
           <p className="text-muted-foreground">
             Si le résultat ne vous convainc pas, refaites l&apos;enregistrement dans un
-            endroit plus calme.
+            endroit plus calme. Recommencer efface la voix qui vient d&apos;être créée.
           </p>
+          {erreurTraitement && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
+              {erreurTraitement}
+            </div>
+          )}
           <div className="flex gap-3">
             <Button onClick={() => router.push("/brief")}>Cela me convient</Button>
-            <Button variant="secondary" onClick={recommencer}>
-              Recommencer
+            <Button
+              variant="secondary"
+              onClick={() => void recommencer()}
+              disabled={occupe}
+            >
+              {occupe ? "Suppression de l'ancienne voix..." : "Recommencer"}
             </Button>
           </div>
         </section>

@@ -3,13 +3,21 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { deleteProfile, listProfiles, type VoiceProfile } from "@/lib/api";
 
+function messageErreur(e: unknown): string {
+  return e instanceof Error ? e.message : "Erreur inconnue.";
+}
+
 /**
- * Materialise la promesse de confidentialite : mono-profil (comme le reste
- * de l'application, voir brief/page.tsx qui prend toujours profils[0]), donc
- * un seul bouton suffit. N'affiche rien tant qu'aucune voix n'existe.
+ * Materialise la promesse de confidentialite : efface TOUS les profils vocaux
+ * et leurs echantillons, pas seulement le premier. Rien ne garantit qu'il n'y
+ * en ait qu'un : un onboarding recommence, une session precedente, un profil
+ * cree a la main en laissent plusieurs sur le disque. Un bouton qui n'en
+ * supprime qu'un laisserait l'utilisateur croire que tout est efface.
+ *
+ * N'affiche rien tant qu'aucune voix n'existe.
  */
 export function DeleteVoiceButton() {
-  const [profil, setProfil] = useState<VoiceProfile | null>(null);
+  const [profils, setProfils] = useState<VoiceProfile[]>([]);
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -17,12 +25,10 @@ export function DeleteVoiceButton() {
     let annule = false;
     async function charger() {
       try {
-        const profils = await listProfiles();
-        if (!annule) setProfil(profils[0] ?? null);
+        const liste = await listProfiles();
+        if (!annule) setProfils(liste);
       } catch (e) {
-        if (!annule) {
-          setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
-        }
+        if (!annule) setErreur(messageErreur(e));
       }
     }
     void charger();
@@ -32,32 +38,65 @@ export function DeleteVoiceButton() {
   }, []);
 
   async function supprimer() {
-    if (!profil) return;
-    const confirme = window.confirm(
-      "Supprimer votre voix clonée et l'échantillon audio associé ? Cette action est irréversible."
-    );
-    if (!confirme) return;
+    if (profils.length === 0) return;
+    const quoi =
+      profils.length > 1
+        ? `vos ${profils.length} voix clonées et les échantillons audio associés`
+        : "votre voix clonée et l'échantillon audio associé";
+    if (!window.confirm(`Supprimer ${quoi} ? Cette action est irréversible.`)) return;
+
     setOccupe(true);
     setErreur(null);
-    try {
-      await deleteProfile(profil.id);
-      setProfil(null);
-    } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
-    } finally {
-      setOccupe(false);
+    // Suppression une par une, sans abandonner au premier echec : chaque
+    // echantillon efface est un echantillon biometrique de moins sur le
+    // disque, meme si l'un d'eux resiste.
+    const echecs: string[] = [];
+    for (const profil of profils) {
+      try {
+        await deleteProfile(profil.id);
+      } catch (e) {
+        echecs.push(`« ${profil.label} » : ${messageErreur(e)}`);
+      }
     }
+
+    // Rechargement systematique : c'est la liste du serveur qui fait foi, pas
+    // ce que l'on croit avoir supprime. Sans lui, l'interface affirmerait que
+    // tout est efface sans l'avoir verifie.
+    try {
+      setProfils(await listProfiles());
+    } catch (e) {
+      echecs.push(`Impossible de vérifier la liste des voix : ${messageErreur(e)}`);
+    }
+
+    setErreur(
+      echecs.length > 0
+        ? `Suppression incomplète, votre voix est peut-être toujours sur le disque. ${echecs.join(" ")}`
+        : null
+    );
+    setOccupe(false);
   }
 
   // Ni voix clonee, ni erreur a signaler : rien a afficher.
-  if (!profil && !erreur) return null;
+  if (profils.length === 0 && !erreur) return null;
 
   return (
     <div className="space-y-2">
-      {profil && (
-        <Button variant="secondary" size="sm" onClick={supprimer} disabled={occupe}>
-          {occupe ? "Suppression..." : "Supprimer ma voix"}
-        </Button>
+      {profils.length > 0 && (
+        <>
+          <Button variant="secondary" size="sm" onClick={supprimer} disabled={occupe}>
+            {occupe
+              ? "Suppression..."
+              : profils.length > 1
+                ? `Supprimer mes ${profils.length} voix`
+                : "Supprimer ma voix"}
+          </Button>
+          {profils.length > 1 && (
+            <p className="text-xs text-muted-foreground">
+              {profils.length} échantillons de votre voix sont enregistrés sur cette
+              machine.
+            </p>
+          )}
+        </>
       )}
       {erreur && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
