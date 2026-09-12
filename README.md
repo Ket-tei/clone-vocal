@@ -38,6 +38,11 @@ npm run dev
 
 Ouvrez http://localhost:3000
 
+Le backend n'accepte les requêtes du navigateur que depuis
+`http://localhost:3000` et `http://127.0.0.1:3000` (CORS volontairement
+restreint à l'interface locale). Si vous servez l'interface sur un autre
+port, ajustez `ORIGINES_AUTORISEES` dans `backend/app/main.py`.
+
 ## Tests
 
 Aucun des deux suites ne nécessite de GPU (le LLM, le TTS et la

@@ -21,8 +21,13 @@ async function requete(chemin: string, options?: RequestInit): Promise<Response>
   try {
     reponse = await fetch(`${BASE}${chemin}`, options);
   } catch {
+    // fetch ne distingue pas un backend eteint d'une requete bloquee par le
+    // navigateur (CORS) : le message doit couvrir les deux, sous peine
+    // d'envoyer l'utilisateur relancer un serveur qui tourne deja.
     throw new Error(
-      "Le backend est injoignable. Lancez-le avec : uvicorn app.main:app --port 8000"
+      "Le backend n'a pas répondu. Vérifiez qu'il tourne " +
+        "(uvicorn app.main:app --port 8000) et que vous ouvrez l'interface " +
+        "sur http://localhost:3000 ou http://127.0.0.1:3000."
     );
   }
   if (!reponse.ok) {
