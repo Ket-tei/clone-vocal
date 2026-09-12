@@ -74,12 +74,12 @@ def validate(metrics: AudioMetrics) -> ValidationResult:
     elif metrics.duration_s > MAX_DUREE_S:
         problems.append(
             f"Enregistrement trop long ({metrics.duration_s:.0f} s) : "
-            f"limitez-vous a {MAX_DUREE_S:.0f} secondes maximum, coupez l'enregistrement "
-            "plus tot ou recommencez plus court."
+            f"limitez-vous à {MAX_DUREE_S:.0f} secondes maximum, coupez l'enregistrement "
+            "plus tôt ou recommencez plus court."
         )
     if metrics.peak_dbfs > PEAK_MAX_DBFS:
         problems.append(
-            "Le son est sature : reculez-vous du micro ou baissez le gain "
+            "Le son est saturé : éloignez-vous du micro ou baissez le gain "
             "d'enregistrement, puis recommencez."
         )
     elif metrics.peak_dbfs < PEAK_MIN_DBFS:
@@ -92,6 +92,6 @@ def validate(metrics: AudioMetrics) -> ValidationResult:
         )
     if metrics.snr_db < MIN_SNR_DB:
         problems.append(
-            "Trop de bruit de fond. Fermez les fenetres et coupez ventilateur ou musique."
+            "Trop de bruit de fond. Fermez les fenêtres et coupez ventilateur ou musique."
         )
     return ValidationResult(ok=not problems, problems=problems)

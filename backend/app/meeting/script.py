@@ -62,7 +62,7 @@ def parse_script(brut: str) -> Script:
             par_kind[kind] = texte
     if not par_kind:
         raise ValueError(
-            "Le modele n'a produit aucun bloc exploitable. Relancez la generation."
+            "Le modèle n'a produit aucun bloc exploitable. Relancez la génération."
         )
     blocks = [ScriptBlock(kind=k, text=par_kind[k]) for k in KINDS if k in par_kind]
     return Script(blocks=blocks)

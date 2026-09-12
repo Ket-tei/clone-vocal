@@ -241,7 +241,7 @@ async def test_un_tts_qui_leve_hors_runtimeerror_ne_tue_pas_la_connexion(
 
     class TtsQuiCasse:
         def synthesize(self, text, profile):
-            raise ValueError("Le texte a synthetiser est vide.")
+            raise ValueError("Le texte à synthétiser est vide.")
 
     app.dependency_overrides[deps.get_tts] = lambda: TtsQuiCasse()
     profil_id = _profil(client, wav_valide)

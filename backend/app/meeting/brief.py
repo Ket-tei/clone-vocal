@@ -21,5 +21,5 @@ class MeetingBrief(BaseModel):
     def _non_vide(cls, v: str) -> str:
         nettoye = v.strip()
         if not nettoye:
-            raise ValueError("Ce champ ne peut pas etre vide.")
+            raise ValueError("Ce champ ne peut pas être vide.")
         return nettoye

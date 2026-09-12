@@ -8,6 +8,7 @@ from app.stt.transcriber import Transcriber, get_transcriber
 from app.voice.engine import TtsEngine, get_engine
 from app.voice.store import VoiceStore
 
+
 @lru_cache
 def _store() -> VoiceStore:
     settings = get_settings()

@@ -47,7 +47,7 @@ def test_trop_long_est_refuse():
 
 def test_sature_est_refuse():
     resultat = validate(_metriques(peak_dbfs=-0.2))
-    assert any("sature" in p.lower() for p in resultat.problems)
+    assert any("saturé" in p.lower() for p in resultat.problems)
 
 def test_trop_faible_est_refuse():
     resultat = validate(_metriques(peak_dbfs=-30.0))

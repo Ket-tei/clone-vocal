@@ -30,7 +30,7 @@ class FakeTtsEngine:
 
     def synthesize(self, text: str, profile: VoiceProfile) -> bytes:
         if not text.strip():
-            raise ValueError("Le texte a synthetiser est vide.")
+            raise ValueError("Le texte à synthétiser est vide.")
         self.appels.append((text, profile.id))
         duree = max(0.3, len(text) * 0.06)
         return _to_wav(np.zeros(int(duree * SAMPLE_RATE), dtype=np.float32))
@@ -51,7 +51,7 @@ class ChatterboxEngine:
 
     def synthesize(self, text: str, profile: VoiceProfile) -> bytes:
         if not text.strip():
-            raise ValueError("Le texte a synthetiser est vide.")
+            raise ValueError("Le texte à synthétiser est vide.")
         modele = self._charger()
         onde = modele.generate(text, audio_prompt_path=profile.sample_path)
         # Chatterbox rend un tenseur torch, potentiellement sur le GPU.

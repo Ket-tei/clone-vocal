@@ -1,10 +1,11 @@
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.audio.validation import AudioMetrics
+
 
 @dataclass(frozen=True)
 class VoiceProfile:
@@ -33,7 +34,7 @@ class VoiceStore:
         profil = VoiceProfile(
             id=profil_id,
             label=label,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             sample_path=str(chemin),
             duration_s=metrics.duration_s,
             snr_db=metrics.snr_db,

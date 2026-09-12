@@ -1,10 +1,11 @@
 import subprocess
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from app.capability import InsufficientVramError, detect_vram_gb, select_tier
+
 
 def test_16_go_donne_le_palier_haut():
     assert select_tier(16.0).llm_model == "qwen3:8b-q4_K_M"
@@ -32,28 +33,40 @@ def test_vram_inconnue_refuse():
 
 def test_detect_vram_nvidia_smi_absent():
     """Quand nvidia-smi n'est pas dans le PATH, detect_vram_gb retourne None sans appeler subprocess.run."""
-    with patch("app.capability.shutil.which", return_value=None) as mock_which:
-        with patch("app.capability.subprocess.run") as mock_run:
-            result = detect_vram_gb()
-            assert result is None
-            mock_which.assert_called_once_with("nvidia-smi")
-            mock_run.assert_not_called()
+    with (
+        patch("app.capability.shutil.which", return_value=None) as mock_which,
+        patch("app.capability.subprocess.run") as mock_run,
+    ):
+        result = detect_vram_gb()
+        assert result is None
+        mock_which.assert_called_once_with("nvidia-smi")
+        mock_run.assert_not_called()
 
 
 def test_detect_vram_subprocess_failed():
     """Quand subprocess.run leve CalledProcessError, detect_vram_gb retourne None."""
-    with patch("app.capability.shutil.which", return_value="/usr/bin/nvidia-smi"):
-        with patch("app.capability.subprocess.run", side_effect=subprocess.CalledProcessError(1, "nvidia-smi")):
-            result = detect_vram_gb()
-            assert result is None
+    with (
+        patch("app.capability.shutil.which", return_value="/usr/bin/nvidia-smi"),
+        patch(
+            "app.capability.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "nvidia-smi"),
+        ),
+    ):
+        result = detect_vram_gb()
+        assert result is None
 
 
 def test_detect_vram_subprocess_timeout():
     """Quand subprocess.run leve TimeoutExpired, detect_vram_gb retourne None."""
-    with patch("app.capability.shutil.which", return_value="/usr/bin/nvidia-smi"):
-        with patch("app.capability.subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 10)):
-            result = detect_vram_gb()
-            assert result is None
+    with (
+        patch("app.capability.shutil.which", return_value="/usr/bin/nvidia-smi"),
+        patch(
+            "app.capability.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("nvidia-smi", 10),
+        ),
+    ):
+        result = detect_vram_gb()
+        assert result is None
 
 
 def test_detect_vram_empty_output():

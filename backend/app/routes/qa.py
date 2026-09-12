@@ -15,7 +15,23 @@ from app.voice.store import VoiceProfile, VoiceStore
 
 router = APIRouter(prefix="/api/qa", tags=["qa"])
 
-_CONTEXTE_MANQUANT = "Contexte de reunion non initialise."
+_PROFIL_INTROUVABLE = "Profil vocal introuvable."
+_CONTEXTE_MANQUANT = (
+    "Contexte de réunion non initialisé : envoyez d'abord le brief et le "
+    "script de présentation."
+)
+# Ces deux messages remplacent l'interpolation de l'exception d'origine, qui
+# est redigee en anglais par pydantic ou par la bibliotheque standard
+# (« Field required », « Invalid base64-encoded string ») et partait telle
+# quelle a l'ecran d'un utilisateur francophone.
+_CONTEXTE_INVALIDE = (
+    "Le contexte de la réunion est incomplet ou mal formé. Revenez au "
+    "formulaire de brief et régénérez la présentation."
+)
+_AUDIO_INVALIDE = (
+    "L'enregistrement audio reçu est illisible. Refaites votre question au "
+    "micro."
+)
 
 # Un moteur TTS ne leve pas que des RuntimeError : ValueError sur un texte
 # vide, OSError si l'echantillon vocal a disparu du disque. Laisser passer
@@ -102,15 +118,15 @@ async def boucle_qa(
             if type_message == "context":
                 if profil is None:
                     await websocket.send_json(
-                        {"type": "error", "message": "Profil vocal introuvable."}
+                        {"type": "error", "message": _PROFIL_INTROUVABLE}
                     )
                     continue
                 try:
                     nouveau_brief = MeetingBrief(**entrant["brief"])
                     nouveau_script = Script(**entrant["script"])
-                except (ValidationError, KeyError, TypeError) as err:
+                except (ValidationError, KeyError, TypeError):
                     await websocket.send_json(
-                        {"type": "error", "message": f"Contexte invalide : {err}"}
+                        {"type": "error", "message": _CONTEXTE_INVALIDE}
                     )
                     continue
                 # Assignation groupee, apres coup : un brief valide accompagne
@@ -152,9 +168,9 @@ async def boucle_qa(
                 if type_message == "audio":
                     try:
                         wav_bytes = base64.b64decode(entrant["wav_b64"])
-                    except (KeyError, TypeError, binascii.Error) as err:
+                    except (KeyError, TypeError, binascii.Error):
                         await websocket.send_json(
-                            {"type": "error", "message": f"Audio invalide : {err}"}
+                            {"type": "error", "message": _AUDIO_INVALIDE}
                         )
                         continue
                     question = stt.transcribe(wav_bytes)
@@ -198,7 +214,7 @@ async def boucle_qa(
                 continue
 
             await websocket.send_json(
-                {"type": "error", "message": f"Type de message inconnu : {type_message!r}"}
+                {"type": "error", "message": f"Message non reconnu par le backend (type {type_message!r})."}
             )
     except WebSocketDisconnect:
         return

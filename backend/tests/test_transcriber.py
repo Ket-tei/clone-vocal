@@ -2,6 +2,7 @@ import pytest
 
 from app.stt.transcriber import FakeTranscriber, KyutaiTranscriber, get_transcriber
 
+
 def test_fake_rend_les_reponses_dans_l_ordre():
     t = FakeTranscriber(["Quel est le prix ?", "Et le delai ?"])
     assert t.transcribe(b"RIFF") == "Quel est le prix ?"

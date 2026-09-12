@@ -26,8 +26,10 @@ def _analyser(contenu: bytes):
             422,
             detail={
                 "problems": [
-                    "Le fichier audio est illisible ou incomplet. "
-                    "Refaites l'enregistrement."
+                    (
+                        "Le fichier audio est illisible ou incomplet. "
+                        "Refaites l'enregistrement."
+                    )
                 ]
             },
         ) from err

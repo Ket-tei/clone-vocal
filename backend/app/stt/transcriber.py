@@ -16,7 +16,7 @@ class FakeTranscriber:
 
     def transcribe(self, wav_bytes: bytes) -> str:
         if not wav_bytes:
-            raise ValueError("L'audio recu est vide.")
+            raise ValueError("L'audio reçu est vide.")
         self.appels += 1
         return self._reponses.pop(0) if self._reponses else ""
 
@@ -36,7 +36,7 @@ class KyutaiTranscriber:
 
     def transcribe(self, wav_bytes: bytes) -> str:
         if not wav_bytes:
-            raise ValueError("L'audio recu est vide.")
+            raise ValueError("L'audio reçu est vide.")
         modele = self._charger()
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             f.write(wav_bytes)

@@ -32,11 +32,11 @@ def test_vram_insuffisante_renvoie_503_avec_message_clair(client):
     500 generique."""
     def _vram_insuffisante():
         raise InsufficientVramError(
-            "VRAM detectee : 4.0 Go. Le minimum requis est 8.0 Go."
+            "VRAM détectée : 4.0 Go. Le minimum requis est 8.0 Go."
         )
 
     app.dependency_overrides[deps.get_llm] = _vram_insuffisante
     r = client.post("/api/meeting/script", json=BRIEF)
 
     assert r.status_code == 503
-    assert r.json()["detail"] == "VRAM detectee : 4.0 Go. Le minimum requis est 8.0 Go."
+    assert r.json()["detail"] == "VRAM détectée : 4.0 Go. Le minimum requis est 8.0 Go."

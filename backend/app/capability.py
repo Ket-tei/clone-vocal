@@ -23,14 +23,14 @@ TIERS: list[ModelTier] = [
 def select_tier(vram_gb: float | None) -> ModelTier:
     if vram_gb is None:
         raise InsufficientVramError(
-            "Aucun GPU NVIDIA detecte. Cette application exige une carte "
+            "Aucun GPU NVIDIA détecté. Cette application exige une carte "
             "d'au moins 8 Go de VRAM."
         )
     for tier in TIERS:
         if vram_gb >= tier.min_vram_gb:
             return tier
     raise InsufficientVramError(
-        f"VRAM detectee : {vram_gb} Go. Le minimum requis est 8.0 Go."
+        f"VRAM détectée : {vram_gb} Go. Le minimum requis est 8.0 Go."
     )
 
 
