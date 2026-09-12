@@ -4,16 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { qaSocketUrl, type Brief, type Script } from "@/lib/api";
-import { AudioQueue } from "@/lib/audio";
+import { AudioQueue, webmToWav } from "@/lib/audio";
 
 type Tour = { role: "user" | "assistant"; text: string };
 type Contexte = { brief: Brief; script: Script; profilId: string };
+type EtatMicro = "inactif" | "enregistrement" | "envoi";
 type MessageEntrant = {
   type?: string;
   text?: string;
   wav_b64?: string;
   message?: string;
 };
+
+/** Symetrique du decodage cote reception : pas de prefixe data:, juste le base64. */
+async function blobVersBase64(blob: Blob): Promise<string> {
+  const octets = new Uint8Array(await blob.arrayBuffer());
+  let binaire = "";
+  for (let i = 0; i < octets.length; i++) binaire += String.fromCharCode(octets[i]);
+  return btoa(binaire);
+}
 
 /**
  * sessionStorage peut contenir une valeur d'une ancienne version de
@@ -46,8 +55,12 @@ export default function PageSession() {
   const [question, setQuestion] = useState("");
   const [pret, setPret] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [micEtat, setMicEtat] = useState<EtatMicro>("inactif");
   const ws = useRef<WebSocket | null>(null);
   const queue = useRef(new AudioQueue());
+  const micStream = useRef<MediaStream | null>(null);
+  const micRecorder = useRef<MediaRecorder | null>(null);
+  const micMorceaux = useRef<Blob[]>([]);
 
   useEffect(() => {
     // Sans profil valide, aucune connexion n'est possible : on renvoie tout
@@ -116,6 +129,9 @@ export default function PageSession() {
       // Sans cet arret, l'audio deja en file continuerait a jouer apres
       // avoir quitte la page.
       fileAudio.stop();
+      // Filet de securite : si l'utilisateur quitte pendant un
+      // enregistrement, le micro ne doit pas rester allume.
+      micStream.current?.getTracks().forEach((t) => t.stop());
     };
   }, [router]);
 
@@ -128,6 +144,62 @@ export default function PageSession() {
     } catch {
       setErreur("Échec de l'envoi de la question. Réessayez.");
     }
+  }
+
+  function arreterMicro() {
+    micStream.current?.getTracks().forEach((t) => t.stop());
+    micStream.current = null;
+  }
+
+  async function envoyerEnregistrement(webm: Blob) {
+    setMicEtat("envoi");
+    try {
+      if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+        throw new Error("La connexion au backend n'est plus active.");
+      }
+      // Obligatoire : le backend (soundfile) ne lit pas le WebM produit par
+      // MediaRecorder.
+      const wav = await webmToWav(webm);
+      const wav_b64 = await blobVersBase64(wav);
+      ws.current.send(JSON.stringify({ type: "audio", wav_b64 }));
+    } catch (e) {
+      setErreur(
+        e instanceof Error
+          ? e.message
+          : "Erreur inattendue lors de l'envoi de votre question au micro."
+      );
+    } finally {
+      setMicEtat("inactif");
+    }
+  }
+
+  async function demarrerMicro() {
+    setErreur(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStream.current = stream;
+      micMorceaux.current = [];
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => micMorceaux.current.push(e.data);
+      recorder.onstop = () => {
+        // Le flux n'est plus necessaire une fois l'enregistrement capture :
+        // on coupe le micro tout de suite, avant meme l'envoi au backend.
+        arreterMicro();
+        void envoyerEnregistrement(new Blob(micMorceaux.current, { type: "audio/webm" }));
+      };
+      micRecorder.current = recorder;
+      recorder.start();
+      setMicEtat("enregistrement");
+    } catch {
+      setErreur(
+        "Micro refusé ou introuvable. Autorisez l'accès au micro dans la barre " +
+          "d'adresse de votre navigateur, puis réessayez."
+      );
+    }
+  }
+
+  function arreterEnregistrement() {
+    micRecorder.current?.stop();
   }
 
   if (!contexte) {
@@ -186,6 +258,17 @@ export default function PageSession() {
           disabled={!pret}
         />
         <Button onClick={envoyer} disabled={!pret}>Envoyer</Button>
+        <Button
+          variant={micEtat === "enregistrement" ? "destructive" : "outline"}
+          onClick={micEtat === "enregistrement" ? arreterEnregistrement : () => void demarrerMicro()}
+          disabled={!pret || micEtat === "envoi"}
+        >
+          {micEtat === "enregistrement"
+            ? "Arrêter l'enregistrement"
+            : micEtat === "envoi"
+              ? "Envoi de la question..."
+              : "Poser au micro"}
+        </Button>
         <Button variant="secondary" onClick={() => queue.current.stop()}>
           Couper
         </Button>

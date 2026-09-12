@@ -9,9 +9,10 @@ spécification complète.
 
 ## Prérequis
 
-- GPU NVIDIA avec **au moins 8 Go de VRAM** (en dessous, le backend refuse de
-  répondre dès la première requête qui sollicite le modèle de langage — script
-  ou question/réponse — avec une erreur explicite)
+- GPU NVIDIA avec **au moins 8 Go de VRAM** (en dessous, le backend répond
+  **503** avec un message explicite — « VRAM detectee : X Go. Le minimum
+  requis est 8.0 Go. » — dès la première requête qui sollicite le modèle de
+  langage, script ou question/réponse ; ce n'est pas un plantage silencieux)
 - Python 3.11+, Node.js 20.9+, Docker (avec le support GPU NVIDIA pour Compose)
 
 ## Installation
@@ -52,9 +53,11 @@ cd frontend && npx vitest run
 
 ## Supprimer votre voix
 
-Aucun bouton de suppression n'est pour l'instant intégré à l'interface —
-c'est une lacune connue du plan, pas un oubli de configuration. En
-attendant, deux façons de tout effacer :
+Le bouton « Supprimer ma voix », sur la page d'accueil, efface le profil
+vocal et l'échantillon audio associé (il ne s'affiche que si une voix a déjà
+été clonée ; une confirmation est demandée avant suppression).
+
+Deux autres façons de tout effacer, si besoin :
 
 - Via l'API : `curl -X DELETE http://127.0.0.1:8000/api/voice/profiles/<id>`
   (`<id>` s'obtient avec `curl http://127.0.0.1:8000/api/voice/profiles`).

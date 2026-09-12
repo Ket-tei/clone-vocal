@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DeleteVoiceButton } from "@/components/DeleteVoiceButton";
 
 export default function Accueil() {
   return (
@@ -14,13 +15,16 @@ export default function Accueil() {
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
-        <p className="font-medium">Tout reste sur cette machine.</p>
-        <p className="mt-1 text-muted-foreground">
-          Votre voix, vos enregistrements et le contexte de vos prospects ne sont
-          envoyés à aucun service externe. Aucune connexion sortante n&apos;est
-          effectuée pendant l&apos;utilisation.
-        </p>
+      <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-4 text-sm">
+        <div>
+          <p className="font-medium">Tout reste sur cette machine.</p>
+          <p className="mt-1 text-muted-foreground">
+            Votre voix, vos enregistrements et le contexte de vos prospects ne sont
+            envoyés à aucun service externe. Aucune connexion sortante n&apos;est
+            effectuée pendant l&apos;utilisation.
+          </p>
+        </div>
+        <DeleteVoiceButton />
       </div>
 
       <Button render={<Link href="/onboarding" />} size="lg" className="self-start">
