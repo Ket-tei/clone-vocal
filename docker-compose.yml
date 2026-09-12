@@ -1,0 +1,20 @@
+# Seul Ollama est conteneurise : le STT et le TTS tournent en process
+# dans le backend, ou ils partagent le meme contexte CUDA.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: clone-vocal-ollama
+    ports:
+      - "127.0.0.1:11434:11434"   # jamais expose hors de la machine
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  ollama-models:
