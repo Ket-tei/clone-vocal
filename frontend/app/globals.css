@@ -2,129 +2,156 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* ===========================================================================
+   Système visuel — vocabulaire du studio d'enregistrement.
+
+   Le code couleur d'un vumètre (correct / chaud / saturé) devient le code
+   couleur du produit. La couleur ne decore jamais : elle dit toujours ou en
+   est le signal. D'ou trois teintes fonctionnelles et rien d'autre.
+   =========================================================================== */
+
+:root {
+  --encre: #141034;      /* indigo profond : le texte */
+  --papier: #f1f2ec;     /* neutre froid */
+  --papier-vif: #fbfcf8; /* surfaces surelevees */
+  --signal: #3826f5;     /* ultramarine : action, niveau correct */
+  --eclat: #f5e400;      /* jaune acide : niveau chaud, mise en avant */
+  --brulure: #ff4a1c;    /* vermillon : saturation, erreur */
+  --trait: #cfd2c4;      /* filets */
+  --estompe: #56527a;    /* texte secondaire */
+
+  /* Les composants shadcn heritent de la meme palette. */
+  --background: var(--papier);
+  --foreground: var(--encre);
+  --card: var(--papier-vif);
+  --card-foreground: var(--encre);
+  --popover: var(--papier-vif);
+  --popover-foreground: var(--encre);
+  --primary: var(--signal);
+  --primary-foreground: #ffffff;
+  --secondary: transparent;
+  --secondary-foreground: var(--encre);
+  --muted: #e6e8de;
+  --muted-foreground: var(--estompe);
+  --accent: var(--eclat);
+  --accent-foreground: var(--encre);
+  --destructive: var(--brulure);
+  --border: var(--trait);
+  --input: var(--trait);
+  --ring: var(--signal);
+  /* Angles francs : les coins uniformement arrondis sont la signature du
+     gabarit SaaS. Ici seuls les controles sont adoucis, tres legerement. */
+  --radius: 0.25rem;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-signal: var(--signal);
+  --color-eclat: var(--eclat);
+  --color-brulure: var(--brulure);
+  --color-encre: var(--encre);
+  --color-trait: var(--trait);
+  --font-sans: var(--font-archivo);
+  --font-display: var(--font-bricolage);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+  * { @apply border-border; }
+
   body {
-    @apply bg-background text-foreground;
+    background: var(--papier);
+    color: var(--encre);
+    font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+    /* Chiffres tabulaires : les dBFS et les secondes defilent, ils ne
+       doivent pas faire sautiller la mise en page. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
   }
-  html {
-    @apply font-sans;
+
+  h1, h2, h3 {
+    font-family: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 0.95;
+    text-wrap: balance;
   }
+
+  :focus-visible {
+    outline: 3px solid var(--signal);
+    outline-offset: 2px;
+  }
+
+  ::selection { background: var(--eclat); color: var(--encre); }
+}
+
+@layer components {
+  /* --- Ossature ------------------------------------------------------- */
+  .enveloppe { @apply mx-auto w-full max-w-[46rem] px-5 sm:px-8; }
+
+  /* Bande pleine largeur : remplace la carte comme unite de structure. */
+  .bande { @apply w-full border-y; border-color: var(--trait); }
+  .bande-signal { background: var(--signal); color: #fff; border: 0; }
+  .bande-eclat { background: var(--eclat); color: var(--encre); border: 0; }
+  .bande-brulure { background: var(--brulure); color: #fff; border: 0; }
+
+  /* --- Titrage -------------------------------------------------------- */
+  .titre-geant { font-size: clamp(2.75rem, 11vw, 5.5rem); }
+  .titre { font-size: clamp(1.9rem, 6.5vw, 3rem); }
+  .sous-titre { @apply text-lg sm:text-xl; color: var(--estompe); line-height: 1.5; max-width: 34ch; }
+
+  /* Le script a lire a voix haute : c'est le seul endroit ou le confort de
+     lecture prime sur la densite. Interligne genereux, mesure courte. */
+  .a-lire {
+    font-size: clamp(1.25rem, 4.2vw, 1.6rem);
+    line-height: 1.75;
+    max-width: 32ch;
+    letter-spacing: -0.011em;
+  }
+
+  /* --- Vumetre -------------------------------------------------------- */
+  .vumetre { @apply relative w-full overflow-hidden; height: 3.5rem; background: var(--encre); }
+  .vumetre-jauge { @apply h-full origin-left; transition: transform 60ms linear; }
+  /* Reperes des seuils reels du backend : -18 dBFS et -1 dBFS. */
+  .vumetre-seuil { @apply absolute top-0 h-full; width: 2px; background: rgba(255,255,255,.45); }
+
+  /* --- Compteur de niveau --------------------------------------------- */
+  .mesure { @apply flex items-baseline gap-2; }
+  .mesure-valeur { font-family: var(--font-bricolage); font-weight: 700; font-size: 2.25rem; letter-spacing: -0.04em; line-height: 1; }
+  .mesure-unite { @apply text-sm; color: var(--estompe); }
+
+  /* --- Messages ------------------------------------------------------- */
+  .avis { @apply border-l-4 p-4 text-[0.95rem] leading-relaxed; }
+  .avis-ok { border-color: var(--signal); background: color-mix(in srgb, var(--signal) 7%, transparent); }
+  .avis-chaud { border-color: var(--eclat); background: color-mix(in srgb, var(--eclat) 22%, transparent); }
+  .avis-erreur { border-color: var(--brulure); background: color-mix(in srgb, var(--brulure) 8%, transparent); }
+
+  /* --- Fil d'etapes : un trait qui se remplit, pas des pastilles ------- */
+  .fil { @apply flex gap-1.5; }
+  .fil-segment { @apply h-1 flex-1; background: var(--trait); }
+  .fil-segment[data-fait="oui"] { background: var(--signal); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

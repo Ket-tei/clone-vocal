@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { deleteProfile, listProfiles, type VoiceProfile } from "@/lib/api";
 
 function messageErreur(e: unknown): string {
@@ -83,15 +82,20 @@ export function DeleteVoiceButton() {
     <div className="space-y-2">
       {profils.length > 0 && (
         <>
-          <Button variant="secondary" size="sm" onClick={supprimer} disabled={occupe}>
+          <button
+            type="button"
+            onClick={supprimer}
+            disabled={occupe}
+            className="border-2 border-white/70 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-[var(--signal)] disabled:opacity-50"
+          >
             {occupe
               ? "Suppression..."
               : profils.length > 1
                 ? `Supprimer mes ${profils.length} voix`
                 : "Supprimer ma voix"}
-          </Button>
+          </button>
           {profils.length > 1 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-white/75">
               {profils.length} échantillons de votre voix sont enregistrés sur cette
               machine.
             </p>
@@ -99,7 +103,7 @@ export function DeleteVoiceButton() {
         </>
       )}
       {erreur && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+        <div className="border-l-4 border-white bg-white/15 p-3 text-sm text-white">
           {erreur}
         </div>
       )}

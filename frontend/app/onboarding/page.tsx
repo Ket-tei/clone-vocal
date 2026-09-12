@@ -3,7 +3,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { MicLevelMeter } from "@/components/MicLevelMeter";
 import { QualityReport } from "@/components/QualityReport";
-import { Button } from "@/components/ui/button";
 import {
   analyzeSample,
   createProfile,
@@ -14,6 +13,11 @@ import {
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 
 type Etape = "micro" | "lecture" | "controle" | "validation";
+
+const BOUTON =
+  "w-fit bg-[var(--signal)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
+const BOUTON_SECONDAIRE =
+  "w-fit border-2 border-[var(--encre)] px-6 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--encre)] hover:text-[var(--papier)] disabled:opacity-50";
 
 // Vrai lorsque l'application tourne sans GPU (demonstration d'interface) :
 // la synthese rend alors un audio silencieux, il faut le dire a l'utilisateur.
@@ -170,132 +174,162 @@ export default function Onboarding() {
     }
   }
 
+  const etapes: Etape[] = ["micro", "lecture", "controle", "validation"];
+  const rang = etapes.indexOf(etape);
+
   return (
-    <main className="mx-auto max-w-2xl space-y-8 p-8">
-      <h1 className="text-3xl font-semibold">Cloner votre voix</h1>
+    <main className="flex flex-1 flex-col">
+      {/* Fil d'etapes : un trait qui se remplit. Des pastilles numerotees
+          suggereraient un formulaire administratif ; ici c'est une prise de son. */}
+      <div className="enveloppe pt-6">
+        <div className="fil" aria-label={`Étape ${rang + 1} sur ${etapes.length}`}>
+          {etapes.map((e, i) => (
+            <span key={e} className="fil-segment" data-fait={i <= rang ? "oui" : "non"} />
+          ))}
+        </div>
+      </div>
 
       {etape === "micro" && (
-        <section className="space-y-4">
-          <p className="text-muted-foreground">
-            Commençons par vérifier votre micro. Parlez normalement : le niveau doit
-            rester dans la zone verte.
-          </p>
-          {!stream && <Button onClick={autoriserMicro}>Autoriser le micro</Button>}
-          {erreurMicro && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              {erreurMicro}
-            </div>
+        <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-12">
+          <div className="space-y-4">
+            <h1 className="titre">Réglons votre micro</h1>
+            <p className="sous-titre">
+              Parlez normalement. Le niveau doit rester entre les deux repères.
+            </p>
+          </div>
+
+          {!stream && (
+            <button type="button" onClick={autoriserMicro} className={BOUTON}>
+              Autoriser le micro
+            </button>
           )}
+
+          {erreurMicro && <div className="avis avis-erreur">{erreurMicro}</div>}
+
           {stream && (
             <>
               <MicLevelMeter stream={stream} />
-              <Button onClick={demarrer}>Commencer l&apos;enregistrement</Button>
+              <button type="button" onClick={demarrer} className={BOUTON}>
+                Commencer l&apos;enregistrement
+              </button>
             </>
           )}
-        </section>
+        </div>
       )}
 
       {etape === "lecture" && (
-        <section className="space-y-4">
-          {!erreurTraitement && (
-            <>
-              <p className="text-muted-foreground">
-                Lisez ce texte à voix haute, à votre rythme habituel.
-              </p>
-              <p className="whitespace-pre-line rounded-lg border bg-muted/40 p-6 text-xl leading-relaxed">
-                {SCRIPT_LECTURE}
-              </p>
-              <Button
-                onClick={() => recorder.current?.stop()}
-                variant="secondary"
-                disabled={occupe}
-              >
-                {occupe ? "Analyse en cours..." : "J'ai terminé"}
-              </Button>
-            </>
-          )}
-          {erreurTraitement && (
-            <div className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              <p>{erreurTraitement}</p>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => webmBrut.current && void traiter(webmBrut.current)}
-                  disabled={occupe}
-                >
-                  {occupe ? "Nouvelle tentative..." : "Réessayer"}
-                </Button>
-                <Button variant="secondary" onClick={() => void recommencer()}>
-                  Recommencer
-                </Button>
-              </div>
+        <>
+          <div className="bande-brulure">
+            <div className="enveloppe flex items-center gap-3 py-3">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-white" />
+              <p className="text-sm font-semibold">Enregistrement en cours</p>
             </div>
-          )}
-        </section>
+          </div>
+          <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-10">
+            <p className="text-[0.95rem] font-medium">
+              Lisez ce texte à voix haute, à votre rythme habituel.
+            </p>
+            <p className="a-lire whitespace-pre-line">{SCRIPT_LECTURE}</p>
+            <button
+              type="button"
+              onClick={() => recorder.current?.stop()}
+              className={BOUTON_SECONDAIRE}
+            >
+              J&apos;ai terminé
+            </button>
+          </div>
+        </>
       )}
 
-      {etape === "controle" && resultat && (
-        <section className="space-y-4">
-          <QualityReport resultat={resultat} />
+      {etape === "controle" && (
+        <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-12">
+          <h1 className="titre">
+            {resultat?.ok ? "Enregistrement accepté" : "Il faut recommencer"}
+          </h1>
+
+          {occupe && <p className="sous-titre">Analyse de votre enregistrement…</p>}
+          {resultat && <QualityReport resultat={resultat} />}
+
           {erreurTraitement && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              {erreurTraitement}
+            <div className="space-y-3">
+              <div className="avis avis-erreur">{erreurTraitement}</div>
+              <button
+                type="button"
+                onClick={() => webmBrut.current && void traiter(webmBrut.current)}
+                disabled={occupe}
+                className={BOUTON}
+              >
+                Réessayer
+              </button>
             </div>
           )}
-          {resultat.ok ? (
-            <Button onClick={enregistrerProfil} disabled={occupe}>
-              {occupe
-                ? "Création de votre voix..."
-                : erreurTraitement
-                  ? "Réessayer"
-                  : "Créer ma voix"}
-            </Button>
-          ) : (
-            <Button onClick={() => void recommencer()} variant="secondary">
-              Recommencer
-            </Button>
+
+          {!occupe && resultat && (
+            <div className="flex flex-wrap gap-3">
+              {resultat.ok ? (
+                <button
+                  type="button"
+                  onClick={enregistrerProfil}
+                  disabled={occupe}
+                  className={BOUTON}
+                >
+                  {occupe ? "Création de votre voix…" : "Créer ma voix"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void recommencer()}
+                  className={BOUTON}
+                >
+                  Recommencer
+                </button>
+              )}
+            </div>
           )}
-        </section>
+        </div>
       )}
 
       {etape === "validation" && (
-        <section className="space-y-4">
+        <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-12">
           {MODE_DEMO ? (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
-              <p className="font-medium text-amber-700 dark:text-amber-400">
-                Synthèse vocale indisponible sur ce serveur.
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Cette démonstration tourne sans carte graphique : l&apos;extrait que
-                vous venez d&apos;entendre est silencieux. Votre enregistrement a bien
-                été analysé et accepté — seule la synthèse exige un GPU.
-              </p>
-            </div>
+            <>
+              <h1 className="titre">Votre voix est enregistrée</h1>
+              <div className="avis avis-chaud">
+                <p className="font-semibold">Synthèse vocale indisponible sur ce serveur.</p>
+                <p className="mt-1">
+                  Cette démonstration tourne sans carte graphique : l&apos;extrait que
+                  vous venez d&apos;entendre est silencieux. Votre enregistrement a bien
+                  été analysé et accepté — seule la synthèse exige un GPU.
+                </p>
+              </div>
+            </>
           ) : (
-            <p className="text-lg">
-              Écoutez : voici votre voix prononçant une phrase que vous n&apos;avez pas
-              enregistrée.
-            </p>
+            <>
+              <h1 className="titre">Écoutez-vous</h1>
+              <p className="sous-titre">
+                Voici votre voix prononçant une phrase que vous n&apos;avez jamais
+                enregistrée. Si le résultat ne vous convainc pas, refaites
+                l&apos;enregistrement dans un endroit plus calme.
+              </p>
+            </>
           )}
-          <p className="text-muted-foreground">
-            Si le résultat ne vous convainc pas, refaites l&apos;enregistrement dans un
-            endroit plus calme. Recommencer efface la voix qui vient d&apos;être créée.
-          </p>
-          {erreurTraitement && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              {erreurTraitement}
-            </div>
-          )}
-          <div className="flex gap-3">
-            <Button onClick={() => router.push("/brief")}>Cela me convient</Button>
-            <Button
-              variant="secondary"
+
+          {erreurTraitement && <div className="avis avis-erreur">{erreurTraitement}</div>}
+
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => router.push("/brief")} className={BOUTON}>
+              Cela me convient
+            </button>
+            <button
+              type="button"
               onClick={() => void recommencer()}
               disabled={occupe}
+              className={BOUTON_SECONDAIRE}
             >
-              {occupe ? "Suppression de l'ancienne voix..." : "Recommencer"}
-            </Button>
+              {occupe ? "Suppression de l'ancienne voix…" : "Recommencer"}
+            </button>
           </div>
-        </section>
+        </div>
       )}
     </main>
   );

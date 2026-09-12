@@ -1,10 +1,21 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { qaSocketUrl, type Brief, type Script } from "@/lib/api";
 import { AudioQueue, webmToWav } from "@/lib/audio";
+
+const BOUTON =
+  "w-fit bg-[var(--signal)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
+const BOUTON_SECONDAIRE =
+  "w-fit border-2 border-[var(--encre)] px-6 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--encre)] hover:text-[var(--papier)] disabled:opacity-50";
+// Le micro en cours d'enregistrement est l'etat "on vous ecoute" : meme
+// gabarit que BOUTON, mais dans le vermillon du vumetre sature.
+const BOUTON_MICRO_ACTIF =
+  "w-fit bg-[var(--brulure)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
+// Trait bas plutot qu'une boite complete, comme dans le formulaire de brief.
+const CHAMP =
+  "rounded-none border-0 border-b-2 border-[var(--trait)] bg-transparent px-0 focus-visible:ring-0 focus:border-[var(--signal)]";
 
 type Tour = { role: "user" | "assistant"; text: string };
 type Contexte = { brief: Brief; script: Script; profilId: string };
@@ -253,77 +264,97 @@ export default function PageSession() {
 
   if (!contexte) {
     return (
-      <main className="mx-auto max-w-2xl p-8">
-        <p className="text-muted-foreground">Redirection vers le formulaire de brief...</p>
+      <main className="flex flex-1 flex-col">
+        <div className="enveloppe flex flex-1 flex-col justify-center py-16">
+          <p className="sous-titre">Redirection vers le formulaire de brief…</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <header>
-        <h1 className="text-2xl font-semibold">
-          {contexte.brief.prospect_name} · {contexte.brief.company}
-        </h1>
+    <main className="flex flex-1 flex-col">
+      <header className="enveloppe space-y-2 py-8">
+        <h1 className="titre">{contexte.brief.prospect_name}</h1>
+        <p className="sous-titre">{contexte.brief.company}</p>
       </header>
 
-      <section className="space-y-3 rounded-lg border bg-muted/30 p-5">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Votre présentation
-        </h2>
-        {contexte.script.blocks.map((b) => (
-          <p key={b.kind} className="leading-relaxed">{b.text}</p>
-        ))}
-        <Button onClick={lancerPresentation} disabled={!pret || presentationEnCours}>
-          {presentationEnCours ? "Présentation en cours..." : "Lancer la présentation"}
-        </Button>
-      </section>
+      {/* Bande pleine largeur : le script est un objet a part, pas une carte
+          parmi d'autres. Fond legerement souleve pour le distinguer du papier. */}
+      <div className="bande bg-[var(--papier-vif)]">
+        <div className="enveloppe space-y-5 py-8">
+          <h2 className="text-lg font-semibold">Votre présentation</h2>
+          <div className="space-y-4">
+            {contexte.script.blocks.map((b) => (
+              <p key={b.kind} className="a-lire whitespace-pre-line">{b.text}</p>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={lancerPresentation}
+            disabled={!pret || presentationEnCours}
+            className={BOUTON}
+          >
+            {presentationEnCours ? "Présentation en cours…" : "Lancer la présentation"}
+          </button>
+        </div>
+      </div>
 
       {erreur && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          {erreur}
+        <div className="enveloppe py-6">
+          <div className="avis avis-erreur">{erreur}</div>
         </div>
       )}
 
-      <section className="space-y-3">
-        {tours.map((tour, i) => (
-          <div
-            key={i}
-            className={`rounded-lg p-4 ${
-              tour.role === "user" ? "bg-muted" : "border bg-background"
-            }`}
-          >
-            <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
-              {tour.role === "user" ? "Question du prospect" : "Votre réponse"}
-            </p>
-            <p>{tour.text}</p>
-          </div>
-        ))}
-      </section>
+      <div className="enveloppe space-y-8 py-8">
+        <div className="space-y-4">
+          {tours.map((tour, i) => (
+            <div
+              key={i}
+              className={
+                tour.role === "user"
+                  ? "bg-[var(--muted)] p-4"
+                  : "border-l-4 border-[var(--signal)] p-4"
+              }
+            >
+              <p className="mb-1 text-sm font-medium text-[var(--estompe)]">
+                {tour.role === "user" ? "Question du prospect" : "Votre réponse"}
+              </p>
+              <p className="leading-relaxed">{tour.text}</p>
+            </div>
+          ))}
+        </div>
 
-      <div className="flex gap-2">
-        <Input
-          value={question}
-          placeholder="Posez la question que poserait votre prospect..."
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && envoyer()}
-          disabled={!pret}
-        />
-        <Button onClick={envoyer} disabled={!pret}>Envoyer</Button>
-        <Button
-          variant={micEtat === "enregistrement" ? "destructive" : "outline"}
-          onClick={micEtat === "enregistrement" ? arreterEnregistrement : () => void demarrerMicro()}
-          disabled={!pret || micEtat === "envoi"}
-        >
-          {micEtat === "enregistrement"
-            ? "Arrêter l'enregistrement"
-            : micEtat === "envoi"
-              ? "Envoi de la question..."
-              : "Poser au micro"}
-        </Button>
-        <Button variant="secondary" onClick={couper}>
-          Couper
-        </Button>
+        <div className="space-y-4">
+          <Input
+            value={question}
+            placeholder="Posez la question que poserait votre prospect…"
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && envoyer()}
+            disabled={!pret}
+            className={CHAMP}
+          />
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={envoyer} disabled={!pret} className={BOUTON}>
+              Envoyer
+            </button>
+            <button
+              type="button"
+              onClick={micEtat === "enregistrement" ? arreterEnregistrement : () => void demarrerMicro()}
+              disabled={!pret || micEtat === "envoi"}
+              className={micEtat === "enregistrement" ? BOUTON_MICRO_ACTIF : BOUTON_SECONDAIRE}
+            >
+              {micEtat === "enregistrement"
+                ? "Arrêter l'enregistrement"
+                : micEtat === "envoi"
+                  ? "Envoi de la question…"
+                  : "Poser au micro"}
+            </button>
+            <button type="button" onClick={couper} className={BOUTON_SECONDAIRE}>
+              Couper
+            </button>
+          </div>
+        </div>
       </div>
     </main>
   );

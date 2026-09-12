@@ -32,17 +32,19 @@ export default function PageBrief() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
-      <h1 className="text-3xl font-semibold">Votre prochain rendez-vous</h1>
-      <p className="text-muted-foreground">
-        Décrivez le prospect. Ces informations restent sur votre machine.
-      </p>
-      {erreur && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
-          {erreur}
+    <main className="flex flex-1 flex-col">
+      <div className="enveloppe flex flex-1 flex-col gap-8 py-12">
+        <div className="space-y-4">
+          <h1 className="titre">Votre prochain rendez-vous</h1>
+          <p className="sous-titre">
+            Décrivez le prospect. Ces informations restent sur votre machine.
+          </p>
         </div>
-      )}
-      <BriefForm onSubmit={soumettre} occupe={occupe} />
+
+        {erreur && <div className="avis avis-erreur">{erreur}</div>}
+
+        <BriefForm onSubmit={soumettre} occupe={occupe} />
+      </div>
     </main>
   );
 }
