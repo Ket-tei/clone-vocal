@@ -1,4 +1,6 @@
+import asyncio.base_events
 import io
+import socket
 
 import numpy as np
 import pytest
@@ -12,6 +14,90 @@ from app.main import app
 from app.stt.transcriber import FakeTranscriber
 from app.voice.engine import FakeTtsEngine
 from app.voice.store import VoiceStore
+
+HOTES_LOCAUX = {"127.0.0.1", "::1", "localhost", "0.0.0.0", "testserver"}
+
+
+def _nom_hote(valeur: object) -> str | None:
+    """Normalise un hote en chaine comparable a HOTES_LOCAUX.
+
+    socket.getaddrinfo recoit l'hote en bytes (b'exemple.invalid') quand
+    l'appelant est asyncio : sans ce decodage, aucune comparaison ne
+    correspondrait et l'espion laisserait tout passer.
+    """
+    if valeur is None:
+        return None
+    if isinstance(valeur, (bytes, bytearray)):
+        return bytes(valeur).decode("utf-8", "replace")
+    return str(valeur)
+
+
+@pytest.fixture(autouse=True)
+def sorties_reseau(monkeypatch):
+    """Echoue si un test a ouvert une connexion vers un hote non local.
+
+    L'auto-hebergement de cette application est motive par la confidentialite :
+    la voix clonee est une donnee biometrique, et les briefs prospects portent
+    des noms, des montants et des enjeux commerciaux. Cette fixture transforme
+    cette promesse en propriete verifiee a CHAQUE test de la suite.
+
+    Trois crochets complementaires, aucun ne suffit seul :
+
+    - socket.socket.connect : les clients synchrones.
+    - socket.getaddrinfo : toute cible nommee, y compris asynchrone. Sous
+      WindowsProactorEventLoop, httpx.AsyncClient passe par ConnectEx et ne
+      touche JAMAIS socket.socket.connect ; mesure a l'appui, seul le
+      self-pipe local y apparait.
+    - BaseEventLoop.create_connection : les cibles en IP litterale en
+      asynchrone, que getaddrinfo ne voit pas (asyncio court-circuite la
+      resolution quand l'hote est deja une adresse).
+
+    L'assertion est au demontage, pas en derniere ligne d'un test : un echec
+    anterieur masquerait sinon la fuite.
+
+    Si cette fixture echoue, c'est un defaut bloquant : ne l'assouplissez
+    jamais pour faire passer la suite.
+    """
+    vues: list[str] = []
+
+    def noter(hote: object) -> None:
+        nom = _nom_hote(hote)
+        if nom and nom not in HOTES_LOCAUX:
+            vues.append(nom)
+
+    connect_reel = socket.socket.connect
+
+    def connect_espion(self, adresse):
+        if isinstance(adresse, tuple) and adresse:
+            noter(adresse[0])
+        return connect_reel(self, adresse)
+
+    getaddrinfo_reel = socket.getaddrinfo
+
+    def getaddrinfo_espion(host, port, *args, **kwargs):
+        noter(host)
+        return getaddrinfo_reel(host, port, *args, **kwargs)
+
+    create_connection_reel = asyncio.base_events.BaseEventLoop.create_connection
+
+    async def create_connection_espion(self, protocol_factory, host=None, port=None, **kw):
+        noter(host)
+        return await create_connection_reel(self, protocol_factory, host, port, **kw)
+
+    monkeypatch.setattr(socket.socket, "connect", connect_espion)
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo_espion)
+    monkeypatch.setattr(
+        asyncio.base_events.BaseEventLoop, "create_connection", create_connection_espion
+    )
+
+    yield vues
+
+    assert vues == [], (
+        f"Des connexions sont parties vers des hotes externes : "
+        f"{sorted(set(vues))}. L'application doit fonctionner sans "
+        f"aucune sortie reseau."
+    )
+
 
 SCRIPT_BRUT = """[accroche]
 Bonjour Claire, merci de votre temps.
