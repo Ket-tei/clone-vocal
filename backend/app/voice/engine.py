@@ -54,6 +54,15 @@ class ChatterboxEngine:
             raise ValueError("Le texte a synthetiser est vide.")
         modele = self._charger()
         onde = modele.generate(text, audio_prompt_path=profile.sample_path)
+        # Chatterbox rend un tenseur torch, potentiellement sur le GPU.
+        # On le ramene en memoire hote sans importer torch : le duck typing
+        # suffit et garde ce module utilisable sans la dependance.
+        if hasattr(onde, "detach"):
+            onde = onde.detach()
+        if hasattr(onde, "cpu"):
+            onde = onde.cpu()
+        if hasattr(onde, "numpy"):
+            onde = onde.numpy()
         signal = np.asarray(onde).squeeze().astype(np.float32)
         return _to_wav(signal, sr=getattr(modele, "sr", SAMPLE_RATE))
 

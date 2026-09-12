@@ -3,7 +3,7 @@ import wave
 
 import pytest
 
-from app.voice.engine import FakeTtsEngine, get_engine
+from app.voice.engine import ChatterboxEngine, FakeTtsEngine, get_engine
 from app.voice.store import VoiceProfile
 
 PROFIL = VoiceProfile(
@@ -18,6 +18,7 @@ def test_fake_produit_un_wav_lisible():
         assert w.getnchannels() == 1
         assert w.getframerate() == 24000
         assert w.getnframes() > 0
+        assert w.getsampwidth() == 2, "16 bits par echantillon"
 
 def test_fake_memorise_les_appels():
     moteur = FakeTtsEngine()
@@ -41,3 +42,10 @@ def test_get_engine_fake():
 def test_get_engine_inconnu_est_refuse():
     with pytest.raises(ValueError, match="inconnu"):
         get_engine("inexistant")
+
+def test_get_engine_chatterbox_sans_charger_le_modele():
+    """La branche de production : instancier ne doit rien charger."""
+    moteur = get_engine("chatterbox")
+    assert isinstance(moteur, ChatterboxEngine)
+    assert moteur.device == "cuda"
+    assert moteur._modele is None, "le modele ne doit etre charge qu'a la synthese"
