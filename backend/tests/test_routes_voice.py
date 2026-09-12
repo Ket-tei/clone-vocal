@@ -34,6 +34,15 @@ def test_analyze_refuse_un_echantillon_trop_court(client):
     assert r.json()["ok"] is False
     assert r.json()["problems"]
 
+def test_fichier_illisible_donne_422_et_pas_500(client):
+    """Un enregistrement corrompu ne doit jamais produire une erreur serveur."""
+    r = client.post(
+        "/api/voice/analyze",
+        files={"file": ("e.wav", b"ceci n'est pas du wav", "audio/wav")},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"]["problems"]
+
 def test_creation_puis_lecture_du_profil(client):
     r = client.post(
         "/api/voice/profiles",
@@ -48,6 +57,16 @@ def test_creation_refusee_si_echantillon_invalide(client):
     r = client.post(
         "/api/voice/profiles",
         files={"file": ("e.wav", _wav(5.0), "audio/wav")},
+        data={"label": "Ma voix"},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"]["problems"]
+
+def test_creation_refusee_si_fichier_illisible(client):
+    """Meme constat sur /profiles : illisible n'est pas un 500."""
+    r = client.post(
+        "/api/voice/profiles",
+        files={"file": ("e.wav", b"ceci n'est pas du wav", "audio/wav")},
         data={"label": "Ma voix"},
     )
     assert r.status_code == 422
@@ -78,3 +97,9 @@ def test_suppression_du_profil(client):
 
 def test_suppression_inconnue_renvoie_404(client):
     assert client.delete("/api/voice/profiles/inexistant").status_code == 404
+
+def test_preview_profil_inconnu_donne_404(client):
+    r = client.post(
+        "/api/voice/profiles/inexistant/preview", json={"text": "Bonjour."}
+    )
+    assert r.status_code == 404

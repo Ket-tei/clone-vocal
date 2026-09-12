@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
 
+import soundfile as sf
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
@@ -20,6 +21,16 @@ def _analyser(contenu: bytes):
         chemin = Path(f.name)
     try:
         return analyze(chemin)
+    except sf.LibsndfileError as err:
+        raise HTTPException(
+            422,
+            detail={
+                "problems": [
+                    "Le fichier audio est illisible ou incomplet. "
+                    "Refaites l'enregistrement."
+                ]
+            },
+        ) from err
     finally:
         chemin.unlink(missing_ok=True)
 
