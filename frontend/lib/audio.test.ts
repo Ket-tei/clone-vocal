@@ -79,13 +79,21 @@ describe("AudioQueue", () => {
   function preparer() {
     AudioFactice.instances = [];
     const revoquees: string[] = [];
+    // La Map associe chaque URL au blob qui l'a produite : un stub qui se
+    // contenterait d'incrementer un compteur ne prouverait qu'un seul extrait
+    // joue a la fois, jamais que c'est bien b1 puis b2 puis b3 qui sont lus.
+    const urlsParBlob = new Map<Blob, string>();
     let compteur = 0;
     vi.stubGlobal("Audio", AudioFactice);
     vi.stubGlobal("URL", {
-      createObjectURL: vi.fn(() => `blob:${compteur++}`),
+      createObjectURL: vi.fn((blob: Blob) => {
+        const url = `blob:${compteur++}`;
+        urlsParBlob.set(blob, url);
+        return url;
+      }),
       revokeObjectURL: vi.fn((url: string) => revoquees.push(url)),
     });
-    return { revoquees };
+    return { revoquees, urlsParBlob };
   }
 
   afterEach(() => {
@@ -99,7 +107,7 @@ describe("AudioQueue", () => {
   }
 
   it("lit les extraits strictement dans l'ordre d'arrivee", async () => {
-    preparer();
+    const { urlsParBlob } = preparer();
     const file = new AudioQueue();
     const b1 = new Blob(["1"]);
     const b2 = new Blob(["2"]);
@@ -119,9 +127,15 @@ describe("AudioQueue", () => {
     await laisserPasser();
     expect(AudioFactice.instances).toHaveLength(3);
 
-    // Les URL sont creees dans l'ordre b1, b2, b3 : c'est bien cet ordre-la
-    // qui a ete joue, quel que soit le moment ou chaque extrait a ete pousse.
-    expect(AudioFactice.instances.map((a) => a.src)).toEqual(["blob:0", "blob:1", "blob:2"]);
+    // On verifie l'identite des blobs joues (via l'URL qui a ete generee
+    // specifiquement pour chacun), pas seulement leur nombre : un `pop()`
+    // a la place du `shift()` inverserait b2 et b3 sans que ce test ne le
+    // remarque si l'on comparait uniquement des URL generiques.
+    expect(AudioFactice.instances.map((a) => a.src)).toEqual([
+      urlsParBlob.get(b1),
+      urlsParBlob.get(b2),
+      urlsParBlob.get(b3),
+    ]);
   });
 
   it("un push pendant la lecture n'interrompt pas l'extrait en cours", async () => {
