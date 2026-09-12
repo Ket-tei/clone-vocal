@@ -54,6 +54,22 @@ def test_parse_sans_aucune_balise_leve_une_erreur():
     with pytest.raises(ValueError, match="aucun bloc"):
         parse_script("Du texte sans la moindre balise.")
 
+def test_parse_deduplique_en_gardant_la_premiere_occurrence():
+    script = parse_script("[accroche]\nPremiere.\n[accroche]\nSeconde.")
+    assert [b.kind for b in script.blocks] == ["accroche"]
+    assert script.blocks[0].text == "Premiere."
+
+def test_parse_remet_les_blocs_dans_l_ordre_canonique():
+    script = parse_script("[solution]\nNotre outil.\n[probleme]\nVos couts.")
+    assert [b.kind for b in script.blocks] == ["probleme", "solution"]
+
+def test_as_plain_text_joint_les_blocs_par_une_ligne_vide():
+    """La tache 11 injecte ce texte dans le contexte du LLM."""
+    script = parse_script(BRUT)
+    texte = script.as_plain_text()
+    assert "Bonjour Claire, merci de votre temps.\n\nVos factures" in texte
+    assert "[accroche]" not in texte, "les balises ne doivent pas fuiter dans le prompt"
+
 async def test_generate_script_assemble_le_flux():
     llm = FakeLlmClient([BRUT])
     script = await generate_script(llm, BRIEF)

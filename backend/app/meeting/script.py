@@ -51,16 +51,20 @@ def build_script_messages(brief: MeetingBrief) -> list[Message]:
 
 def parse_script(brut: str) -> Script:
     morceaux = _BALISE.split(brut)
-    blocks: list[ScriptBlock] = []
+    par_kind: dict[str, str] = {}
     for i in range(1, len(morceaux) - 1, 2):
         kind = morceaux[i].strip()
         texte = morceaux[i + 1].strip()
-        if kind in KINDS and texte:
-            blocks.append(ScriptBlock(kind=kind, text=texte))
-    if not blocks:
+        # Un LLM local peut repeter ou reordonner une balise ; le script etant
+        # prononce dans l'ordre, on normalise (premiere occurrence, ordre canonique)
+        # plutot que de jeter une generation entiere pour un defaut mineur.
+        if kind in KINDS and texte and kind not in par_kind:
+            par_kind[kind] = texte
+    if not par_kind:
         raise ValueError(
             "Le modele n'a produit aucun bloc exploitable. Relancez la generation."
         )
+    blocks = [ScriptBlock(kind=k, text=par_kind[k]) for k in KINDS if k in par_kind]
     return Script(blocks=blocks)
 
 
