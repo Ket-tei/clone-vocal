@@ -65,6 +65,7 @@ export async function webmToWav(blob: Blob): Promise<Blob> {
 export class AudioQueue {
   private file: Blob[] = [];
   private courant: HTMLAudioElement | null = null;
+  private urlCourante: string | null = null;
   private actif = false;
 
   get isPlaying(): boolean {
@@ -74,6 +75,12 @@ export class AudioQueue {
   push(blob: Blob): void {
     this.file.push(blob);
     if (!this.actif) void this.suivant();
+  }
+
+  private terminerLecture(url: string): void {
+    URL.revokeObjectURL(url);
+    if (this.urlCourante === url) this.urlCourante = null;
+    void this.suivant();
   }
 
   private async suivant(): Promise<void> {
@@ -86,20 +93,20 @@ export class AudioQueue {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     this.courant = audio;
-    audio.onended = audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      void this.suivant();
-    };
-    await audio.play().catch(() => {
-      URL.revokeObjectURL(url);
-      void this.suivant();
-    });
+    this.urlCourante = url;
+    audio.onended = audio.onerror = () => this.terminerLecture(url);
+    await audio.play().catch(() => this.terminerLecture(url));
   }
 
+  /** Vide la file, interrompt la lecture en cours et revoque son URL objet. */
   stop(): void {
     this.file = [];
     this.courant?.pause();
     this.courant = null;
+    if (this.urlCourante) {
+      URL.revokeObjectURL(this.urlCourante);
+      this.urlCourante = null;
+    }
     this.actif = false;
   }
 }

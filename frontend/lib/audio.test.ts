@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { SCRIPT_LECTURE, encodeWav, rmsToDbfs } from "./audio";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AudioQueue, SCRIPT_LECTURE, encodeWav, rmsToDbfs } from "./audio";
 
 describe("encodeWav", () => {
   async function entete(blob: Blob) {
@@ -50,12 +50,112 @@ describe("script de lecture", () => {
     // ~150 mots par minute a l'oral : 30 s exigent au moins 75 mots.
     expect(SCRIPT_LECTURE.split(/\s+/).length).toBeGreaterThanOrEqual(110);
   });
-  it("couvre les sons nasaux du francais", () => {
-    for (const son of ["on", "an", "in", "un"]) {
-      expect(SCRIPT_LECTURE.toLowerCase()).toContain(son);
+  it("couvre les quatre voyelles nasales du francais avec des mots precis", () => {
+    // Des mots entiers choisis pour leur valeur phonetique (an/en, in, on, un),
+    // verifies par limite de mot : `.toContain("on")` matcherait n'importe quel
+    // texte francais un peu long (ex. "on" dans "bonjour") sans rien prouver.
+    const motsNasaux = ["maintenant", "ensemble", "besoin", "matin", "bon", "un"];
+    for (const mot of motsNasaux) {
+      expect(SCRIPT_LECTURE.toLowerCase()).toMatch(new RegExp(`\\b${mot}\\b`));
     }
   });
   it("contient des chiffres, souvent mal rendus par les modeles", () => {
     expect(/\d/.test(SCRIPT_LECTURE)).toBe(true);
+  });
+});
+
+describe("AudioQueue", () => {
+  class AudioFactice {
+    static instances: AudioFactice[] = [];
+    onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    play = vi.fn(() => Promise.resolve());
+    pause = vi.fn();
+    constructor(public src: string) {
+      AudioFactice.instances.push(this);
+    }
+  }
+
+  function preparer() {
+    AudioFactice.instances = [];
+    const revoquees: string[] = [];
+    let compteur = 0;
+    vi.stubGlobal("Audio", AudioFactice);
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => `blob:${compteur++}`),
+      revokeObjectURL: vi.fn((url: string) => revoquees.push(url)),
+    });
+    return { revoquees };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Laisse les micro-taches (then/await internes de AudioQueue) se resoudre.
+  async function laisserPasser() {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it("lit les extraits strictement dans l'ordre d'arrivee", async () => {
+    preparer();
+    const file = new AudioQueue();
+    const b1 = new Blob(["1"]);
+    const b2 = new Blob(["2"]);
+    const b3 = new Blob(["3"]);
+
+    file.push(b1);
+    file.push(b2);
+    file.push(b3);
+    await laisserPasser();
+    expect(AudioFactice.instances).toHaveLength(1); // un seul extrait a la fois
+
+    AudioFactice.instances[0].onended?.();
+    await laisserPasser();
+    expect(AudioFactice.instances).toHaveLength(2);
+
+    AudioFactice.instances[1].onended?.();
+    await laisserPasser();
+    expect(AudioFactice.instances).toHaveLength(3);
+
+    // Les URL sont creees dans l'ordre b1, b2, b3 : c'est bien cet ordre-la
+    // qui a ete joue, quel que soit le moment ou chaque extrait a ete pousse.
+    expect(AudioFactice.instances.map((a) => a.src)).toEqual(["blob:0", "blob:1", "blob:2"]);
+  });
+
+  it("un push pendant la lecture n'interrompt pas l'extrait en cours", async () => {
+    preparer();
+    const file = new AudioQueue();
+    file.push(new Blob(["1"]));
+    await laisserPasser();
+    const premier = AudioFactice.instances[0];
+
+    file.push(new Blob(["2"]));
+    await laisserPasser();
+
+    expect(AudioFactice.instances).toHaveLength(1);
+    expect(premier.pause).not.toHaveBeenCalled();
+    expect(file.isPlaying).toBe(true);
+  });
+
+  it("stop() vide la file, interrompt la lecture en cours et revoque son URL", async () => {
+    const { revoquees } = preparer();
+    const file = new AudioQueue();
+    file.push(new Blob(["1"]));
+    file.push(new Blob(["2"]));
+    await laisserPasser();
+    const enCours = AudioFactice.instances[0];
+
+    file.stop();
+
+    expect(enCours.pause).toHaveBeenCalled();
+    expect(revoquees).toContain(enCours.src);
+    expect(file.isPlaying).toBe(false);
+
+    // La file etant videe, un nouvel envoi joue "3" et non le "2" en attente.
+    file.push(new Blob(["3"]));
+    await laisserPasser();
+    expect(AudioFactice.instances).toHaveLength(2);
   });
 });
