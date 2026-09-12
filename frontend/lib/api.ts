@@ -16,7 +16,7 @@ export type Brief = {
 export type ScriptBlock = { kind: string; text: string };
 export type Script = { blocks: ScriptBlock[] };
 
-async function appeler<T>(chemin: string, options?: RequestInit): Promise<T> {
+async function requete(chemin: string, options?: RequestInit): Promise<Response> {
   let reponse: Response;
   try {
     reponse = await fetch(`${BASE}${chemin}`, options);
@@ -27,13 +27,22 @@ async function appeler<T>(chemin: string, options?: RequestInit): Promise<T> {
   }
   if (!reponse.ok) {
     const corps = await reponse.json().catch(() => ({}));
-    const detail = corps.detail;
+    const detail = (corps as { detail?: unknown }).detail;
+    const problemes = (detail as { problems?: unknown })?.problems;
     const message =
       typeof detail === "string"
         ? detail
-        : detail?.problems?.join(" ") ?? `Erreur ${reponse.status}`;
+        : Array.isArray(problemes)
+          ? problemes.join(" ")
+          : `Erreur ${reponse.status}`;
     throw new Error(message);
   }
+  return reponse;
+}
+
+async function appeler<T>(chemin: string, options?: RequestInit): Promise<T> {
+  const reponse = await requete(chemin, options);
+  if (reponse.status === 204) return undefined as T;
   return reponse.json() as Promise<T>;
 }
 
@@ -55,16 +64,15 @@ export async function listProfiles(): Promise<VoiceProfile[]> {
 }
 
 export async function deleteProfile(id: string): Promise<void> {
-  await fetch(`${BASE}/api/voice/profiles/${id}`, { method: "DELETE" });
+  await requete(`/api/voice/profiles/${id}`, { method: "DELETE" });
 }
 
 export async function previewVoice(id: string, text: string): Promise<Blob> {
-  const reponse = await fetch(`${BASE}/api/voice/profiles/${id}/preview`, {
+  const reponse = await requete(`/api/voice/profiles/${id}/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
   });
-  if (!reponse.ok) throw new Error("La previsualisation a echoue.");
   return reponse.blob();
 }
 
