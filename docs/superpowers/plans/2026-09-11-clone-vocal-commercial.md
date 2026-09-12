@@ -1652,12 +1652,23 @@ import soundfile as sf
 
 SR = 24000
 
-def _wav(duree_s=45.0, amplitude=0.3):
+def _wav(duree_s=45.0, pic=0.7):
+    """Echantillon synthetique valide.
+
+    La normalisation du pic est OBLIGATOIRE : un bruit gaussien d'ecart-type
+    0.3 sur 45 s atteint un maximum d'environ sigma * sqrt(2 ln N) = 1.58,
+    donc au-dela de la pleine echelle. Sans normalisation, validate() rejette
+    l'echantillon comme sature et aucun test "bon echantillon" ne peut passer.
+    Un pic de 0.7 donne -3.1 dBFS, confortablement dans l'intervalle
+    [-18.0, -1.0] exige par la tache 3.
+    """
     n = int(duree_s * SR)
     rng = np.random.default_rng(0)
     env = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * np.arange(n) / SR)
+    signal = rng.normal(0, 0.3, n) * env
+    signal = signal / np.max(np.abs(signal)) * pic
     tampon = io.BytesIO()
-    sf.write(tampon, (rng.normal(0, amplitude, n) * env).astype(np.float32), SR, format="WAV")
+    sf.write(tampon, signal.astype(np.float32), SR, format="WAV")
     return tampon.getvalue()
 
 def test_analyze_accepte_un_bon_echantillon(client):
@@ -2078,12 +2089,16 @@ import soundfile as sf
 
 @pytest.fixture
 def wav_valide():
+    """Meme normalisation obligatoire que _wav() en tache 10 : sans elle le
+    bruit gaussien depasse la pleine echelle et validate() rejette."""
     sr, duree = 24000, 45.0
     n = int(duree * sr)
     rng = np.random.default_rng(0)
     env = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * np.arange(n) / sr)
+    signal = rng.normal(0, 0.3, n) * env
+    signal = signal / np.max(np.abs(signal)) * 0.7
     tampon = io.BytesIO()
-    sf.write(tampon, (rng.normal(0, 0.3, n) * env).astype(np.float32), sr, format="WAV")
+    sf.write(tampon, signal.astype(np.float32), sr, format="WAV")
     return tampon.getvalue()
 
 @pytest.fixture
