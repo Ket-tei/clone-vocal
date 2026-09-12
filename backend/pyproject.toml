@@ -12,6 +12,7 @@ dependencies = [
     "soundfile>=0.12",
     "python-multipart>=0.0.12",
     "chatterbox-tts>=0.1",
+    "moshi>=0.2",
 ]
 
 [project.optional-dependencies]
