@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import get_settings
-from app.routes import health
+from app.routes import health, meeting, voice
 
 
 @asynccontextmanager
@@ -14,3 +14,5 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Clone vocal commercial", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
+app.include_router(voice.router)
+app.include_router(meeting.router)
