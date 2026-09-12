@@ -163,3 +163,70 @@ def test_le_second_tour_contient_l_historique_du_premier(client, wav_valide, llm
     assert any("Et pour la mise en place ?" in c for c in corps)
     roles = [m["role"] for m in llm_espion.derniers_messages]
     assert "assistant" in roles
+
+SCRIPT_DEUX_BLOCS = {
+    "blocks": [
+        {"kind": "accroche", "text": "Bonjour Claire. Merci de votre temps."},
+        {"kind": "probleme", "text": "Vos factures coutent cher a traiter."},
+    ]
+}
+
+def test_present_prononce_tous_les_blocs_du_script(client, wav_valide):
+    tts = app.dependency_overrides[deps.get_tts]()
+    avant = len(tts.appels)
+    with client.websocket_connect(f"/api/qa/{_profil(client, wav_valide)}") as ws:
+        ws.send_json(
+            {"type": "context", "brief": BRIEF, "script": SCRIPT_DEUX_BLOCS}
+        )
+        ws.send_json({"type": "present"})
+        phrases: list[str] = []
+        audios = 0
+        types: list[str] = []
+        while True:
+            message = ws.receive_json()
+            types.append(message["type"])
+            assert message["type"] != "error", message.get("message")
+            if message["type"] == "sentence":
+                phrases.append(message["text"])
+            elif message["type"] == "audio":
+                audios += 1
+                assert base64.b64decode(message["wav_b64"])[:4] == b"RIFF"
+            elif message["type"] == "done":
+                break
+
+    assert len(phrases) >= 2, phrases
+    assert audios == len(phrases), "chaque phrase doit etre suivie de son audio"
+    # L'ordre du protocole : sentence puis audio, alternes, done en dernier.
+    assert types == ["sentence", "audio"] * len(phrases) + ["done"]
+    # Les deux blocs sont bien prononces, dans l'ordre du script.
+    assert "Bonjour Claire." in phrases[0]
+    assert any("factures" in p for p in phrases)
+    # Le TTS a reellement travaille : sans cela rien ne serait audible.
+    assert len(tts.appels) - avant == len(phrases)
+    assert [texte for texte, _ in tts.appels[avant:]] == phrases
+
+def test_present_avant_le_contexte_renvoie_une_erreur(client, wav_valide):
+    with client.websocket_connect(f"/api/qa/{_profil(client, wav_valide)}") as ws:
+        ws.send_json({"type": "present"})
+        message = ws.receive_json()
+        assert message["type"] == "error"
+        assert "contexte" in message["message"].lower()
+
+def test_present_n_entre_pas_dans_l_historique(client, wav_valide, llm_espion):
+    """Le script est deja injecte dans le contexte du modele : le repeter dans
+    l'historique le ferait compter deux fois et gonflerait chaque prompt."""
+    with client.websocket_connect(f"/api/qa/{_profil(client, wav_valide)}") as ws:
+        ws.send_json(
+            {"type": "context", "brief": BRIEF, "script": SCRIPT_DEUX_BLOCS}
+        )
+        ws.send_json({"type": "present"})
+        while ws.receive_json()["type"] != "done":
+            pass
+        ws.send_json({"type": "question", "text": "Quel est le prix ?"})
+        while ws.receive_json()["type"] != "done":
+            pass
+
+    # Un seul message system de contexte + le systeme + la question : aucun
+    # tour assistant issu de la presentation.
+    roles = [m["role"] for m in llm_espion.derniers_messages]
+    assert "assistant" not in roles, llm_espion.derniers_messages

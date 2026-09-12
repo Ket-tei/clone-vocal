@@ -15,6 +15,35 @@ from app.voice.store import VoiceProfile, VoiceStore
 
 router = APIRouter(prefix="/api/qa", tags=["qa"])
 
+_CONTEXTE_MANQUANT = "Contexte de reunion non initialise."
+
+
+async def emettre_phrase(
+    websocket: WebSocket, tts: TtsEngine, phrase: str, profil: VoiceProfile
+) -> None:
+    """Emet la paire sentence + audio attendue par le client.
+
+    Le texte part avant la synthese : l'interface affiche la phrase pendant
+    que le TTS travaille, et AudioQueue enchaine les extraits dans l'ordre
+    de reception. C'est le seul protocole de sortie de ce module, partage par
+    la presentation et par la boucle question/reponse.
+    """
+    await websocket.send_json({"type": "sentence", "text": phrase})
+    audio = tts.synthesize(phrase, profil)
+    await websocket.send_json(
+        {"type": "audio", "wav_b64": base64.b64encode(audio).decode()}
+    )
+
+
+def decouper(texte: str) -> list[str]:
+    """Decoupe un texte deja complet en phrases prononcables."""
+    chunker = SentenceChunker()
+    phrases = chunker.feed(texte)
+    reste = chunker.flush()
+    if reste:
+        phrases.append(reste)
+    return phrases
+
 _SYSTEME = (
     "Tu reponds a la place d'un commercial, en francais, a l'oral. "
     "Tes reponses sont courtes : deux a quatre phrases maximum, faites pour etre "
@@ -82,19 +111,30 @@ async def boucle_qa(
                 brief, script = nouveau_brief, nouveau_script
                 continue
 
+            if type_message == "present":
+                if brief is None or script is None or profil is None:
+                    await websocket.send_json(
+                        {"type": "error", "message": _CONTEXTE_MANQUANT}
+                    )
+                    continue
+                for bloc in script.blocks:
+                    # Un chunker neuf par bloc : sans cela, un bloc qui ne se
+                    # termine pas par une ponctuation forte deborderait sur le
+                    # suivant et les deux seraient prononces d'un seul souffle.
+                    for phrase in decouper(bloc.text):
+                        await emettre_phrase(websocket, tts, phrase, profil)
+                # La presentation n'entre PAS dans l'historique : ce n'est pas
+                # un echange, et build_answer_messages injecte deja le script
+                # complet dans le contexte du modele.
+                await websocket.send_json({"type": "done"})
+                continue
+
             if type_message in ("question", "audio"):
                 if brief is None or script is None or profil is None:
                     await websocket.send_json(
-                        {"type": "error", "message": "Contexte de reunion non initialise."}
+                        {"type": "error", "message": _CONTEXTE_MANQUANT}
                     )
                     continue
-
-                # Snapshot non optionnel pour la fermeture ci-dessous : le
-                # controle ci-dessus n'est pas visible pour un analyseur
-                # statique a travers `emettre`, et cela garde la logique
-                # correcte meme si `profil` venait a etre reassigne a None
-                # plus tard dans la boucle.
-                profil_actif: VoiceProfile = profil
 
                 if type_message == "audio":
                     try:
@@ -113,22 +153,16 @@ async def boucle_qa(
                 chunker = SentenceChunker()
                 reponse_complete: list[str] = []
 
-                async def emettre(phrase: str) -> None:
-                    reponse_complete.append(phrase)
-                    await websocket.send_json({"type": "sentence", "text": phrase})
-                    audio = tts.synthesize(phrase, profil_actif)
-                    await websocket.send_json(
-                        {"type": "audio", "wav_b64": base64.b64encode(audio).decode()}
-                    )
-
                 messages = build_answer_messages(brief, script, historique, question)
                 try:
                     async for morceau in llm.stream_chat(messages):
                         for phrase in chunker.feed(morceau):
-                            await emettre(phrase)
+                            reponse_complete.append(phrase)
+                            await emettre_phrase(websocket, tts, phrase, profil)
                     reste = chunker.flush()
                     if reste:
-                        await emettre(reste)
+                        reponse_complete.append(reste)
+                        await emettre_phrase(websocket, tts, reste, profil)
                 except RuntimeError as err:
                     await websocket.send_json({"type": "error", "message": str(err)})
                     continue

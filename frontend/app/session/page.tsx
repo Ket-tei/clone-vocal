@@ -56,6 +56,7 @@ export default function PageSession() {
   const [pret, setPret] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [micEtat, setMicEtat] = useState<EtatMicro>("inactif");
+  const [presentationEnCours, setPresentationEnCours] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const queue = useRef(new AudioQueue());
   const micStream = useRef<MediaStream | null>(null);
@@ -114,10 +115,15 @@ export default function PageSession() {
         } catch {
           setErreur("Audio de réponse illisible ; le texte de la réponse reste disponible.");
         }
+      } else if (message.type === "done") {
+        setPresentationEnCours(false);
       } else if (message.type === "error") {
         // Le backend garde la connexion ouverte apres une erreur : on
         // l'affiche sans desactiver la session.
         setErreur(message.message ?? "Erreur inconnue renvoyée par le backend.");
+        // Sans cette remise a zero, une erreur pendant la presentation
+        // laisserait le bouton desactive pour toujours.
+        setPresentationEnCours(false);
       }
     };
 
@@ -144,6 +150,31 @@ export default function PageSession() {
     } catch {
       setErreur("Échec de l'envoi de la question. Réessayez.");
     }
+  }
+
+  /**
+   * Fait prononcer la presentation avec la voix clonee. Le backend renvoie
+   * les memes messages sentence + audio que la boucle question/reponse : rien
+   * de neuf a traiter cote client, AudioQueue enchaine deja les extraits.
+   */
+  function lancerPresentation() {
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+      setErreur("La connexion au backend n'est plus active.");
+      return;
+    }
+    setErreur(null);
+    setPresentationEnCours(true);
+    try {
+      ws.current.send(JSON.stringify({ type: "present" }));
+    } catch {
+      setPresentationEnCours(false);
+      setErreur("Échec de l'envoi de la présentation. Réessayez.");
+    }
+  }
+
+  function couper() {
+    queue.current.stop();
+    setPresentationEnCours(false);
   }
 
   function arreterMicro() {
@@ -225,6 +256,9 @@ export default function PageSession() {
         {contexte.script.blocks.map((b) => (
           <p key={b.kind} className="leading-relaxed">{b.text}</p>
         ))}
+        <Button onClick={lancerPresentation} disabled={!pret || presentationEnCours}>
+          {presentationEnCours ? "Présentation en cours..." : "Lancer la présentation"}
+        </Button>
       </section>
 
       {erreur && (
@@ -269,7 +303,7 @@ export default function PageSession() {
               ? "Envoi de la question..."
               : "Poser au micro"}
         </Button>
-        <Button variant="secondary" onClick={() => queue.current.stop()}>
+        <Button variant="secondary" onClick={couper}>
           Couper
         </Button>
       </div>
