@@ -49,6 +49,11 @@ class KyutaiTranscriber:
             texte = modele.transcribe_file(str(chemin))
             # On ne suppose pas le type de retour d'une bibliotheque qu'on ne
             # peut pas inspecter sans GPU : conversion defensive en str.
+            # None (silence, aucune parole detectee) est un resultat legitime
+            # et doit rendre une chaine vide, pas la chaine litterale "None"
+            # qui partirait comme fausse question au LLM des taches 10-12.
+            if texte is None:
+                return ""
             return str(texte).strip()
         finally:
             chemin.unlink(missing_ok=True)

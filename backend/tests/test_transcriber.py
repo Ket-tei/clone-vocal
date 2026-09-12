@@ -1,6 +1,6 @@
 import pytest
 
-from app.stt.transcriber import FakeTranscriber, get_transcriber
+from app.stt.transcriber import FakeTranscriber, KyutaiTranscriber, get_transcriber
 
 def test_fake_rend_les_reponses_dans_l_ordre():
     t = FakeTranscriber(["Quel est le prix ?", "Et le delai ?"])
@@ -24,3 +24,14 @@ def test_audio_vide_est_refuse():
 def test_get_transcriber_inconnu_est_refuse():
     with pytest.raises(ValueError, match="inconnu"):
         get_transcriber("inexistant")
+
+def test_kyutai_refuse_un_audio_vide_sans_charger_le_modele(monkeypatch):
+    """Charger le modele pour refuser zero octet serait absurde."""
+    transcripteur = KyutaiTranscriber()
+
+    def _interdit():
+        raise AssertionError("le modele ne doit pas etre charge")
+
+    monkeypatch.setattr(transcripteur, "_charger", _interdit)
+    with pytest.raises(ValueError, match="vide"):
+        transcripteur.transcribe(b"")
