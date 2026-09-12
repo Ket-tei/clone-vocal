@@ -1,6 +1,8 @@
 import base64
+import binascii
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
 from app.audio.chunking import SentenceChunker
 from app.deps import get_llm, get_store, get_transcriber_dep, get_tts
@@ -66,8 +68,18 @@ async def boucle_qa(
                         {"type": "error", "message": "Profil vocal introuvable."}
                     )
                     continue
-                brief = MeetingBrief(**entrant["brief"])
-                script = Script(**entrant["script"])
+                try:
+                    nouveau_brief = MeetingBrief(**entrant["brief"])
+                    nouveau_script = Script(**entrant["script"])
+                except (ValidationError, KeyError, TypeError) as err:
+                    await websocket.send_json(
+                        {"type": "error", "message": f"Contexte invalide : {err}"}
+                    )
+                    continue
+                # Assignation groupee, apres coup : un brief valide accompagne
+                # d'un script invalide (ou l'inverse) ne doit pas laisser le
+                # contexte dans un etat mi-ancien mi-nouveau.
+                brief, script = nouveau_brief, nouveau_script
                 continue
 
             if type_message in ("question", "audio"):
@@ -85,7 +97,14 @@ async def boucle_qa(
                 profil_actif: VoiceProfile = profil
 
                 if type_message == "audio":
-                    question = stt.transcribe(base64.b64decode(entrant["wav_b64"]))
+                    try:
+                        wav_bytes = base64.b64decode(entrant["wav_b64"])
+                    except (KeyError, TypeError, binascii.Error) as err:
+                        await websocket.send_json(
+                            {"type": "error", "message": f"Audio invalide : {err}"}
+                        )
+                        continue
+                    question = stt.transcribe(wav_bytes)
                 else:
                     question = entrant["text"]
 
