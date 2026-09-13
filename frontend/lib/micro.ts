@@ -14,6 +14,12 @@ export const CONTRAINTES_ENREGISTREMENT: MediaTrackConstraints = {
   autoGainControl: false,
 };
 
+// Seuils de crete du controle qualite (backend/app/audio/validation.py :
+// PEAK_MIN_DBFS et PEAK_MAX_DBFS). Le vumetre et le rapport de qualite les
+// partagent, pour ne jamais se contredire.
+export const SEUIL_TROP_FAIBLE_DBFS = -30;
+export const SEUIL_SATURE_DBFS = -1;
+
 // Vitesse de retombee de l'affichage, dans l'esprit d'un crete-metre de studio.
 const RELACHE_DB_PAR_S = 20;
 

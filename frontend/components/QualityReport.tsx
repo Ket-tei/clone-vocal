@@ -1,10 +1,9 @@
 "use client";
 import type { AnalyzeResult } from "@/lib/api";
+import { SEUIL_SATURE_DBFS as PIC_MAX, SEUIL_TROP_FAIBLE_DBFS as PIC_MIN } from "@/lib/micro";
 
 /** Seuils appliques par le backend (app/audio/validation.py). */
 const DUREE_MIN = 30;
-const PIC_MIN = -18;
-const PIC_MAX = -1;
 const SILENCE_MAX = 0.35;
 const SNR_MIN = 20;
 

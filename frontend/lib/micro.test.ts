@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { CONTRAINTES_ENREGISTREMENT, niveauCrete, relacher } from "./micro";
+import {
+  CONTRAINTES_ENREGISTREMENT,
+  SEUIL_SATURE_DBFS,
+  SEUIL_TROP_FAIBLE_DBFS,
+  niveauCrete,
+  relacher,
+} from "./micro";
+
+describe("seuils du vumetre", () => {
+  it("reprennent ceux du controle qualite du backend", () => {
+    // backend/app/audio/validation.py : PEAK_MIN_DBFS et PEAK_MAX_DBFS. Un
+    // ecart ferait afficher « Niveau correct » a un enregistrement refuse.
+    expect(SEUIL_TROP_FAIBLE_DBFS).toBe(-30);
+    expect(SEUIL_SATURE_DBFS).toBe(-1);
+  });
+});
 
 describe("contraintes d'enregistrement", () => {
   it("desactivent les traitements du navigateur qui faussent le niveau", () => {

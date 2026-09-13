@@ -50,8 +50,14 @@ def test_sature_est_refuse():
     assert any("saturé" in p.lower() for p in resultat.problems)
 
 def test_trop_faible_est_refuse():
-    resultat = validate(_metriques(peak_dbfs=-30.0))
+    resultat = validate(_metriques(peak_dbfs=-35.0))
     assert any("faible" in p.lower() for p in resultat.problems)
+
+def test_voix_posee_sans_gain_automatique_est_acceptee():
+    # Le navigateur n'amplifie plus le micro : une voix posee culmine souvent
+    # vers -25 dBFS, et meme en parlant fort il etait difficile d'atteindre
+    # l'ancien seuil de -18.
+    assert validate(_metriques(peak_dbfs=-25.0)).ok is True
 
 def test_trop_de_silence_est_refuse():
     assert validate(_metriques(silence_ratio=0.6)).ok is False

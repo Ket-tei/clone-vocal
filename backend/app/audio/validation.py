@@ -6,7 +6,10 @@ import soundfile as sf
 
 MIN_DUREE_S = 30.0
 MAX_DUREE_S = 120.0
-PEAK_MIN_DBFS = -18.0
+# Le navigateur n'amplifie plus le micro (frontend/lib/micro.ts) : une voix
+# posee culmine souvent vers -25 dBFS. Le rapport signal/bruit reste le vrai
+# garde-fou de qualite. Doit rester egal a SEUIL_TROP_FAIBLE_DBFS cote frontend.
+PEAK_MIN_DBFS = -30.0
 PEAK_MAX_DBFS = -1.0
 MAX_SILENCE_RATIO = 0.35
 MIN_SNR_DB = 20.0

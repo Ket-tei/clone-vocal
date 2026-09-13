@@ -1,12 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { niveauCrete, relacher } from "@/lib/micro";
+import {
+  SEUIL_SATURE_DBFS as SATURE,
+  SEUIL_TROP_FAIBLE_DBFS as TROP_FAIBLE,
+  niveauCrete,
+  relacher,
+} from "@/lib/micro";
 
-// Seuils reels appliques par le backend (app/audio/validation.py). Il les
-// compare a la crete de l'enregistrement : le vumetre mesure donc la crete.
+// Les seuils sont ceux du backend (app/audio/validation.py). Il les compare a
+// la crete de l'enregistrement : le vumetre mesure donc la crete.
 const PLANCHER_DBFS = -60;
-const TROP_FAIBLE = -18;
-const SATURE = -1;
 
 const enPourcent = (dbfs: number) =>
   Math.max(0, Math.min(100, ((dbfs - PLANCHER_DBFS) / -PLANCHER_DBFS) * 100));
