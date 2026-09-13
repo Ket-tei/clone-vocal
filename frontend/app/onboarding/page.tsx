@@ -13,7 +13,7 @@ import {
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 import { CONTRAINTES_ENREGISTREMENT } from "@/lib/micro";
 
-type Etape = "micro" | "lecture" | "controle" | "validation";
+type Etape = "autorisation" | "micro" | "lecture" | "controle" | "validation";
 
 const BOUTON =
   "w-fit bg-[var(--signal)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
@@ -32,7 +32,7 @@ function messageErreur(e: unknown, repli: string): string {
 
 export default function Onboarding() {
   const router = useRouter();
-  const [etape, setEtape] = useState<Etape>("micro");
+  const [etape, setEtape] = useState<Etape>("autorisation");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [erreurMicro, setErreurMicro] = useState<string | null>(null);
   const [erreurTraitement, setErreurTraitement] = useState<string | null>(null);
@@ -66,6 +66,7 @@ export default function Onboarding() {
         await navigator.mediaDevices.getUserMedia({ audio: CONTRAINTES_ENREGISTREMENT })
       );
       setErreurMicro(null);
+      setEtape("micro");
     } catch {
       setErreurMicro(
         "Micro refusé ou introuvable. Autorisez l'accès au micro dans la barre " +
@@ -106,7 +107,8 @@ export default function Onboarding() {
     }
     setEnregistre(null);
     setResultat(null);
-    setEtape("micro");
+    // Le micro a ete coupe a la fin de l'enregistrement : il faut le rouvrir.
+    setEtape("autorisation");
   }
 
   function demarrer() {
@@ -177,7 +179,7 @@ export default function Onboarding() {
     }
   }
 
-  const etapes: Etape[] = ["micro", "lecture", "controle", "validation"];
+  const etapes: Etape[] = ["autorisation", "micro", "lecture", "controle", "validation"];
   const rang = etapes.indexOf(etape);
 
   return (
@@ -192,7 +194,25 @@ export default function Onboarding() {
         </div>
       </div>
 
-      {etape === "micro" && (
+      {etape === "autorisation" && (
+        <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-12">
+          <div className="space-y-4">
+            <h1 className="titre">Autorisez votre micro</h1>
+            <p className="sous-titre">
+              Votre navigateur va vous demander l&apos;accès au micro. Rien
+              n&apos;est enregistré à cette étape.
+            </p>
+          </div>
+
+          <button type="button" onClick={autoriserMicro} className={BOUTON}>
+            Autoriser le micro
+          </button>
+
+          {erreurMicro && <div className="avis avis-erreur">{erreurMicro}</div>}
+        </div>
+      )}
+
+      {etape === "micro" && stream && (
         <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-12">
           <div className="space-y-4">
             <h1 className="titre">Réglons votre micro</h1>
@@ -201,22 +221,10 @@ export default function Onboarding() {
             </p>
           </div>
 
-          {!stream && (
-            <button type="button" onClick={autoriserMicro} className={BOUTON}>
-              Autoriser le micro
-            </button>
-          )}
-
-          {erreurMicro && <div className="avis avis-erreur">{erreurMicro}</div>}
-
-          {stream && (
-            <>
-              <MicLevelMeter stream={stream} />
-              <button type="button" onClick={demarrer} className={BOUTON}>
-                Commencer l&apos;enregistrement
-              </button>
-            </>
-          )}
+          <MicLevelMeter stream={stream} />
+          <button type="button" onClick={demarrer} className={BOUTON}>
+            Commencer l&apos;enregistrement
+          </button>
         </div>
       )}
 
