@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Votre voix">
+  <!-- Cinq barres de vumetre dont les sommets dessinent un V : la moitie
+       droite repete la gauche, la voix et son clone. Seules les barres
+       exterieures atteignent la zone correcte, en jaune comme dans l'app.
+       Grille de 32 : chaque cote tombe sur un pixel entier en 16 et 32 px. -->
+  <rect width="32" height="32" rx="3" fill="#3826f5"/>
+  <g fill="#fbfcf8">
+    <rect x="2" y="8" width="4" height="20"/>
+    <rect x="8" y="12" width="4" height="16"/>
+    <rect x="14" y="20" width="4" height="8"/>
+    <rect x="20" y="12" width="4" height="16"/>
+    <rect x="26" y="8" width="4" height="20"/>
+  </g>
+  <g fill="#f5e400">
+    <rect x="2" y="4" width="4" height="4"/>
+    <rect x="26" y="4" width="4" height="4"/>
+  </g>
+</svg>
