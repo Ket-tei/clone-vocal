@@ -11,10 +11,6 @@ beaucoup d'honnêteté. Merci d'avoir pris ce temps ; je vous propose que nous
 avancions ensemble sur la suite.
 `.trim();
 
-export function rmsToDbfs(rms: number): number {
-  return 20 * Math.log10(Math.max(rms, 1e-10));
-}
-
 export const TAUX_CIBLE = 24000;
 
 /** Encode du PCM flottant en WAV mono 16 bits. libsndfile ne lit pas le WebM. */

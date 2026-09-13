@@ -11,6 +11,7 @@ import {
   type AnalyzeResult,
 } from "@/lib/api";
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
+import { CONTRAINTES_ENREGISTREMENT } from "@/lib/micro";
 
 type Etape = "micro" | "lecture" | "controle" | "validation";
 
@@ -61,7 +62,9 @@ export default function Onboarding() {
 
   async function autoriserMicro() {
     try {
-      setStream(await navigator.mediaDevices.getUserMedia({ audio: true }));
+      setStream(
+        await navigator.mediaDevices.getUserMedia({ audio: CONTRAINTES_ENREGISTREMENT })
+      );
       setErreurMicro(null);
     } catch {
       setErreurMicro(

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AudioQueue, SCRIPT_LECTURE, encodeWav, rmsToDbfs } from "./audio";
+import { AudioQueue, SCRIPT_LECTURE, encodeWav } from "./audio";
 
 describe("encodeWav", () => {
   async function entete(blob: Blob) {
@@ -30,18 +30,6 @@ describe("encodeWav", () => {
     const vue = await entete(encodeWav(new Float32Array([2, -2]), 24000));
     expect(vue.getInt16(44, true)).toBe(32767);
     expect(vue.getInt16(46, true)).toBe(-32768);
-  });
-});
-
-describe("rmsToDbfs", () => {
-  it("convertit un signal pleine echelle en 0 dBFS", () => {
-    expect(rmsToDbfs(1)).toBeCloseTo(0, 1);
-  });
-  it("convertit la moitie en environ -6 dBFS", () => {
-    expect(rmsToDbfs(0.5)).toBeCloseTo(-6, 0);
-  });
-  it("ne renvoie jamais -Infinity sur un silence total", () => {
-    expect(Number.isFinite(rmsToDbfs(0))).toBe(true);
   });
 });
 

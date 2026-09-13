@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { rmsToDbfs } from "@/lib/audio";
+import { niveauCrete, relacher } from "@/lib/micro";
 
-// Seuils reels appliques par le backend (app/audio/validation.py).
+// Seuils reels appliques par le backend (app/audio/validation.py). Il les
+// compare a la crete de l'enregistrement : le vumetre mesure donc la crete.
 const PLANCHER_DBFS = -60;
 const TROP_FAIBLE = -18;
 const SATURE = -1;
@@ -23,19 +24,25 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
   useEffect(() => {
     if (!stream) return;
     const ctx = new AudioContext();
+    // Cree apres l'autorisation du micro, donc hors du clic : certains
+    // navigateurs le laissent alors suspendu, et l'analyseur ne rend que du silence.
+    if (ctx.state === "suspended") void ctx.resume();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
     ctx.createMediaStreamSource(stream).connect(analyser);
     const tampon = new Float32Array(analyser.fftSize);
+    let affiche = PLANCHER_DBFS;
+    let precedent = performance.now();
 
-    const boucle = () => {
+    const boucle = (maintenant: number) => {
       analyser.getFloatTimeDomainData(tampon);
-      let somme = 0;
-      for (const v of tampon) somme += v * v;
-      setDbfs(rmsToDbfs(Math.sqrt(somme / tampon.length)));
+      const dtS = Math.max(0, (maintenant - precedent) / 1000);
+      precedent = maintenant;
+      affiche = relacher(affiche, niveauCrete(tampon), dtS);
+      setDbfs(affiche);
       frame.current = requestAnimationFrame(boucle);
     };
-    boucle();
+    frame.current = requestAnimationFrame(boucle);
     return () => {
       cancelAnimationFrame(frame.current);
       void ctx.close();
