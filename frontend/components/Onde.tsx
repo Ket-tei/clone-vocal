@@ -31,10 +31,6 @@ function niveau(indice: number, t: number) {
 const indiceMotif = (j: number, decalage: number) =>
   (((j - 1 - decalage) % NB_BARRES) + NB_BARRES) % NB_BARRES;
 
-// La couleur suit le niveau, exactement comme le vumetre de l'app.
-const teinte = (h: number) =>
-  h > 0.88 ? "var(--brulure)" : h > 0.62 ? "var(--eclat)" : "var(--signal)";
-
 // Centree verticalement : la barre grandit vers le haut et vers le bas.
 const geometrie = (h: number) => {
   const hauteur = Math.max(2, h * 88);
@@ -46,14 +42,9 @@ const geometrie = (h: number) => {
 const arrondi = (v: number) => Math.round(v * 100) / 100;
 
 /**
- * Onde sonore dessinee, avec les trois zones de niveau du produit.
- *
- * Ce n'est pas un ornement : elle montre d'emblee la regle qui decidera si
- * l'enregistrement de l'utilisateur est accepte. Les seuils dessines sont
- * ceux qu'applique reellement le backend (-18 dBFS et -1 dBFS).
- *
- * Elle defile lentement vers la droite et respire, comme une voix captee en
- * direct : en gonflant, les barres passent du bleu au jaune puis au rouge.
+ * Onde sonore en bas de l'accueil. Elle defile lentement vers la droite et
+ * respire, comme une voix captee en direct. Purement decorative : elle est
+ * masquee aux lecteurs d'ecran.
  */
 export function Onde({ className = "" }: { className?: string }) {
   const svg = useRef<SVGSVGElement>(null);
@@ -82,11 +73,9 @@ export function Onde({ className = "" }: { className?: string }) {
       const decalage = Math.floor(parcours / PAS);
       groupe.setAttribute("transform", `translate(${parcours - decalage * PAS} 0)`);
       barres.forEach((barre, j) => {
-        const h = niveau(indiceMotif(j, decalage), t);
-        const { y, hauteur } = geometrie(h);
+        const { y, hauteur } = geometrie(niveau(indiceMotif(j, decalage), t));
         barre.setAttribute("y", String(y));
         barre.setAttribute("height", String(hauteur));
-        barre.style.fill = teinte(h);
       });
     };
     frame = requestAnimationFrame(boucle);
@@ -102,13 +91,11 @@ export function Onde({ className = "" }: { className?: string }) {
       className={className}
       viewBox={`0 0 ${NB_BARRES * PAS} ${HAUTEUR}`}
       preserveAspectRatio="none"
-      role="img"
-      aria-label="Onde sonore : en dessous du seuil le son est trop faible, au dessus il sature."
+      aria-hidden="true"
     >
-      <g>
+      <g style={{ fill: "var(--signal)" }}>
         {Array.from({ length: NB_BARRES + 1 }, (_, j) => {
-          const h = niveau(indiceMotif(j, 0), 0);
-          const { y, hauteur } = geometrie(h);
+          const { y, hauteur } = geometrie(niveau(indiceMotif(j, 0), 0));
           return (
             <rect
               key={j}
@@ -116,7 +103,6 @@ export function Onde({ className = "" }: { className?: string }) {
               y={arrondi(y)}
               width={2.4}
               height={arrondi(hauteur)}
-              style={{ fill: teinte(h) }}
             />
           );
         })}

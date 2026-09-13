@@ -78,6 +78,8 @@ export function DeleteVoiceButton() {
   // Ni voix clonee, ni erreur a signaler : rien a afficher.
   if (profils.length === 0 && !erreur) return null;
 
+  // Lien discret sous l'action principale : la suppression doit rester
+  // accessible sans concurrencer « Me cloner ».
   return (
     <div className="space-y-2">
       {profils.length > 0 && (
@@ -86,7 +88,7 @@ export function DeleteVoiceButton() {
             type="button"
             onClick={supprimer}
             disabled={occupe}
-            className="border-2 border-white/70 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-[var(--signal)] disabled:opacity-50"
+            className="text-sm font-semibold text-[var(--estompe)] underline decoration-[var(--trait)] underline-offset-4 transition-colors hover:text-[var(--encre)] hover:decoration-current disabled:opacity-50"
           >
             {occupe
               ? "Suppression..."
@@ -95,18 +97,13 @@ export function DeleteVoiceButton() {
                 : "Supprimer ma voix"}
           </button>
           {profils.length > 1 && (
-            <p className="text-xs text-white/75">
-              {profils.length} échantillons de votre voix sont enregistrés sur cette
-              machine.
+            <p className="text-xs text-[var(--estompe)]">
+              {profils.length} échantillons de votre voix sont enregistrés.
             </p>
           )}
         </>
       )}
-      {erreur && (
-        <div className="border-l-4 border-white bg-white/15 p-3 text-sm text-white">
-          {erreur}
-        </div>
-      )}
+      {erreur && <div className="avis avis-erreur text-sm">{erreur}</div>}
     </div>
   );
 }
