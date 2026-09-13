@@ -14,8 +14,12 @@ PEAK_MAX_DBFS = -1.0
 MAX_SILENCE_RATIO = 0.35
 MIN_SNR_DB = 20.0
 
-_SEUIL_SILENCE_DBFS = -50.0
 _FENETRE_MS = 20
+# Plancher de silence : juste au-dessus du bruit de fond de l'enregistrement,
+# mais jamais a moins de _MARGE_SOUS_VOIX_DB sous la voix. Valeurs choisies en
+# mesurant une vraie voix a plusieurs niveaux, dans des pieces calmes et bruyantes.
+_MARGE_BRUIT_DB = 4.0
+_MARGE_SOUS_VOIX_DB = 20.0
 
 
 @dataclass(frozen=True)
@@ -47,16 +51,20 @@ def analyze(path: Path) -> AudioMetrics:
     rms = np.sqrt(np.mean(fenetres**2, axis=1))
     rms_db = np.array([_dbfs(v) for v in rms])
 
-    silence = rms_db < _SEUIL_SILENCE_DBFS
-    ratio_silence = float(silence.mean())
+    # Tout se mesure par rapport a l'enregistrement lui-meme : sans le gain
+    # automatique du navigateur, le volume varie d'un micro a l'autre, et un
+    # plancher fixe prenait une voix basse pour du silence et du bruit. Les
+    # fenetres les plus calmes donnent le bruit de fond, les plus fortes la voix.
+    bruit = float(np.percentile(rms_db, 10))
+    voix = float(np.percentile(rms_db, 90))
+    snr = voix - bruit
 
-    actives = rms_db[~silence]
-    if actives.size >= 2:
-        plancher = float(np.percentile(actives, 10))
-        utile = float(np.percentile(actives, 90))
-        snr = utile - plancher
-    else:
-        snr = 0.0
+    # Dans une piece bruyante, les syllabes faibles tomberaient sous un plancher
+    # colle au bruit : le plafonner sous la voix evite d'annoncer « trop de
+    # silence » quand le vrai probleme est le bruit. Un micro coupe (zeros
+    # numeriques) reste du silence quoi qu'il arrive.
+    plancher = max(min(bruit + _MARGE_BRUIT_DB, voix - _MARGE_SOUS_VOIX_DB), _dbfs(0.0) + 1.0)
+    ratio_silence = float((rms_db < plancher).mean())
 
     return AudioMetrics(
         duration_s=round(duree, 3),

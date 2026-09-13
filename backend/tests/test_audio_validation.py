@@ -34,6 +34,45 @@ def test_analyze_mesure_le_silence(tmp_path):
     signal = np.concatenate([_parole(1.0), np.zeros(SR)])
     assert analyze(_ecrire(tmp_path, signal)).silence_ratio == pytest.approx(0.5, abs=0.15)
 
+def _lecture(crete_db=-20.0, bruit_db=-70.0, pauses=0.2, duree_s=40.0):
+    """Lecture imitee : syllabes a 4 Hz, une pause a la fin de chaque phrase de
+    2 s, le tout sur le bruit de fond d'une piece. Graine fixe : deux appels
+    dont crete et bruit different du meme ecart donnent le meme son, a un gain pres."""
+    rng = np.random.default_rng(0)
+    n = int(duree_s * SR)
+    t = np.arange(n) / SR
+    parle = (t % 2.0) < 2.0 * (1 - pauses)
+    voix = rng.normal(0, 1, n) * (0.5 + 0.5 * np.sin(2 * np.pi * 4 * t)) * parle
+    voix *= 10 ** (crete_db / 20) / np.max(np.abs(voix))
+    return voix + rng.normal(0, 10 ** (bruit_db / 20), n)
+
+def test_voix_basse_dans_une_piece_calme_est_acceptee(tmp_path):
+    # Mesure sur une vraie voix : a -30 dBFS de crete, un plancher de silence
+    # fixe a -50 dBFS comptait les syllabes comme du silence et refusait
+    # l'enregistrement pour « silence » et « bruit » dans une piece calme.
+    metriques = analyze(_ecrire(tmp_path, _lecture(crete_db=-30.0, bruit_db=-80.0)))
+    assert validate(metriques).problems == []
+
+def test_le_volume_ne_change_ni_le_silence_ni_le_bruit(tmp_path):
+    fort = analyze(_ecrire(tmp_path, _lecture(crete_db=-6.0, bruit_db=-50.0), "fort.wav"))
+    bas = analyze(_ecrire(tmp_path, _lecture(crete_db=-26.0, bruit_db=-70.0), "bas.wav"))
+    assert bas.silence_ratio == pytest.approx(fort.silence_ratio, abs=0.02)
+    assert bas.snr_db == pytest.approx(fort.snr_db, abs=0.5)
+
+def test_piece_bruyante_refusee_pour_le_bruit_seulement(tmp_path):
+    # Dans le bruit, les syllabes faibles passent sous le plancher de silence :
+    # annoncer « trop de silence » enverrait l'utilisateur sur une fausse piste.
+    problemes = validate(analyze(_ecrire(tmp_path, _lecture(bruit_db=-38.0)))).problems
+    assert any("bruit" in p.lower() for p in problemes)
+    assert not any("silence" in p.lower() for p in problemes)
+
+def test_longues_pauses_sont_detectees(tmp_path):
+    metriques = analyze(_ecrire(tmp_path, _lecture(crete_db=-12.0, pauses=0.5)))
+    assert any("silence" in p.lower() for p in validate(metriques).problems)
+
+def test_micro_coupe_est_entierement_du_silence(tmp_path):
+    assert analyze(_ecrire(tmp_path, np.zeros(40 * SR))).silence_ratio == 1.0
+
 def test_echantillon_conforme_est_accepte():
     assert validate(_metriques()).ok is True
 
