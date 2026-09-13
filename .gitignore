@@ -54,3 +54,6 @@ desktop.ini
 .idea/
 .vscode/
 *.log
+
+# Notes du serveur de demonstration : restent sur la machine locale
+docs/deploiement-demonstration.md
