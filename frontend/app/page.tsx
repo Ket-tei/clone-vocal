@@ -22,7 +22,7 @@ export default function Accueil() {
           href="/onboarding"
           className="group inline-flex w-fit items-center bg-[var(--signal)] px-7 py-4 text-lg font-semibold text-white transition-colors hover:bg-[var(--encre)]"
         >
-          Cloner ma voix
+          Me cloner
         </Link>
       </div>
 
