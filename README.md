@@ -38,6 +38,10 @@ npm run dev
 
 Ouvrez http://localhost:3000
 
+**Sans GPU NVIDIA**, copiez `backend/.env.example` en `backend/.env` avant de
+lancer le backend (étape 2, et l'étape 1 devient inutile) : l'onboarding
+fonctionne entièrement, seule la voix de synthèse est silencieuse.
+
 Le backend n'accepte les requêtes du navigateur que depuis
 `http://localhost:3000` et `http://127.0.0.1:3000` (CORS volontairement
 restreint à l'interface locale). Si vous servez l'interface sur un autre

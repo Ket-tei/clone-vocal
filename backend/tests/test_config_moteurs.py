@@ -9,10 +9,25 @@ from app.stt.transcriber import FakeTranscriber
 from app.voice.engine import FakeTtsEngine
 
 
-def test_les_moteurs_de_production_sont_les_valeurs_par_defaut():
+def test_les_moteurs_de_production_sont_les_valeurs_par_defaut(tmp_path, monkeypatch):
+    # Dossier vide : un .env de developpeur ne doit pas fausser ce test.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TTS_ENGINE", raising=False)
+    monkeypatch.delenv("STT_ENGINE", raising=False)
     reglages = Settings()
     assert reglages.tts_engine == "chatterbox"
     assert reglages.stt_engine == "kyutai"
+
+
+def test_un_fichier_env_du_dossier_courant_est_lu(tmp_path, monkeypatch):
+    """Sur une nouvelle machine, copier .env.example en .env suffit a lancer sans GPU."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TTS_ENGINE", raising=False)
+    monkeypatch.delenv("STT_ENGINE", raising=False)
+    (tmp_path / ".env").write_text("TTS_ENGINE=fake\nSTT_ENGINE=fake\n", encoding="utf-8")
+    reglages = Settings()
+    assert reglages.tts_engine == "fake"
+    assert reglages.stt_engine == "fake"
 
 
 def test_les_moteurs_sont_surchargeables_par_l_environnement(monkeypatch):

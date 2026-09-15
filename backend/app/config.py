@@ -1,10 +1,15 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Un .env dans le dossier de lancement suffit a configurer une nouvelle
+    # machine (voir .env.example). Les variables d'environnement restent
+    # prioritaires ; une cle inconnue dans le fichier ne bloque pas le demarrage.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
     data_dir: Path = Path("data")
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_timeout_s: float = 120.0
