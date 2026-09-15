@@ -40,7 +40,11 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
     const ctx = new AudioContext();
     // Cree apres l'autorisation du micro, donc hors du clic : certains
     // navigateurs le laissent alors suspendu, et l'analyseur ne rend que du silence.
-    if (ctx.state === "suspended") void ctx.resume();
+    // resume() est rejetee si le contexte est ferme avant d'avoir repris : c'est
+    // le cas normal quand le composant est demonte aussitot (Strict Mode en
+    // developpement, changement d'etape). Non interceptee, cette promesse
+    // remontait en erreur « Closed before resume completed ».
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
     ctx.createMediaStreamSource(stream).connect(analyser);
@@ -59,7 +63,7 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
     frame.current = requestAnimationFrame(boucle);
     return () => {
       cancelAnimationFrame(frame.current);
-      void ctx.close();
+      if (ctx.state !== "closed") ctx.close().catch(() => {});
     };
   }, [stream]);
 
