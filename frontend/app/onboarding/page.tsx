@@ -3,16 +3,19 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { FilEtapes } from "@/components/FilEtapes";
 import { MicLevelMeter } from "@/components/MicLevelMeter";
+import { ProgressionCreation, type PhaseCreation } from "@/components/ProgressionCreation";
 import { QualityReport } from "@/components/QualityReport";
 import {
   analyzeSample,
   createProfile,
   deleteProfile,
   previewVoice,
+  voiceStatus,
   type AnalyzeResult,
 } from "@/lib/api";
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 import { CONTRAINTES_ENREGISTREMENT } from "@/lib/micro";
+import { estimerDureeS, lireDurees, memoriserDuree } from "@/lib/progression";
 
 const ETAPES = [
   { id: "autorisation", nom: "Autorisation" },
@@ -63,6 +66,20 @@ export default function Onboarding() {
   const [enregistre, setEnregistre] = useState<Blob | null>(null);
   const [resultat, setResultat] = useState<AnalyzeResult | null>(null);
   const [occupe, setOccupe] = useState(false);
+  const [creation, setCreation] = useState<{
+    phase: PhaseCreation;
+    debut: number;
+    estimationS: number;
+    premierChargement: boolean;
+  } | null>(null);
+  const [ecouleS, setEcouleS] = useState(0);
+
+  // Horloge de la barre de progression, active seulement pendant la creation.
+  useEffect(() => {
+    if (!creation) return;
+    const minuterie = setInterval(() => setEcouleS((performance.now() - creation.debut) / 1000), 500);
+    return () => clearInterval(minuterie);
+  }, [creation]);
   const recorder = useRef<MediaRecorder | null>(null);
   const morceaux = useRef<Blob[]>([]);
   const webmBrut = useRef<Blob | null>(null);
@@ -209,6 +226,17 @@ export default function Onboarding() {
     if (!enregistre) return;
     setOccupe(true);
     setErreurTraitement(null);
+    // Un statut illisible compte comme un premier chargement : mieux vaut une
+    // estimation trop longue qu'une barre qui stagne a 98 %.
+    const { modele_charge } = await voiceStatus().catch(() => ({ modele_charge: false }));
+    const debut = performance.now();
+    setEcouleS(0);
+    setCreation({
+      phase: "profil",
+      debut,
+      estimationS: estimerDureeS(modele_charge, lireDurees()),
+      premierChargement: !modele_charge,
+    });
     try {
       // Revenu au controle depuis la validation : la voix de cet enregistrement
       // existe deja, la recreer laisserait un doublon sur le disque.
@@ -216,6 +244,7 @@ export default function Onboarding() {
         profilCree.current ??
         (await createProfile(new File([enregistre], "e.wav", { type: "audio/wav" }), "Ma voix")).id;
       profilCree.current = id;
+      setCreation((c) => (c ? { ...c, phase: "extrait" } : c));
       const audioBlob = await previewVoice(
         id,
         "Bonjour, je suis ravi d'échanger avec vous aujourd'hui sur votre projet."
@@ -224,6 +253,9 @@ export default function Onboarding() {
       const lecteur = new Audio(url);
       lecteur.onended = () => URL.revokeObjectURL(url);
       void lecteur.play();
+      // Seules les creations sans chargement du modele servent d'etalon : un
+      // premier lancement de plusieurs minutes fausserait les suivantes.
+      if (modele_charge) memoriserDuree((performance.now() - debut) / 1000);
       setEtape("validation");
     } catch (e) {
       // Meme filet qu'au-dessus : l'echantillon deja analyse (`enregistre`)
@@ -232,6 +264,7 @@ export default function Onboarding() {
         messageErreur(e, "Erreur inattendue lors de la création de votre voix.")
       );
     } finally {
+      setCreation(null);
       setOccupe(false);
     }
   }
@@ -374,7 +407,15 @@ export default function Onboarding() {
             {resultat?.ok ? "Enregistrement accepté" : "Il faut recommencer"}
           </h1>
 
-          {occupe && <p className="sous-titre">Analyse de votre enregistrement…</p>}
+          {occupe && !creation && <p className="sous-titre">Analyse de votre enregistrement…</p>}
+          {creation && (
+            <ProgressionCreation
+              phase={creation.phase}
+              ecouleS={ecouleS}
+              estimationS={creation.estimationS}
+              premierChargement={creation.premierChargement}
+            />
+          )}
           {resultat && <QualityReport resultat={resultat} />}
 
           {erreurTraitement && (

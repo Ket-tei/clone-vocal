@@ -72,6 +72,11 @@ export async function deleteProfile(id: string): Promise<void> {
   await requete(`/api/voice/profiles/${id}`, { method: "DELETE" });
 }
 
+/** Le modele vocal est-il deja en memoire ? Sert a estimer la duree de creation. */
+export async function voiceStatus(): Promise<{ modele_charge: boolean }> {
+  return appeler<{ modele_charge: boolean }>("/api/voice/status");
+}
+
 export async function previewVoice(id: string, text: string): Promise<Blob> {
   const reponse = await requete(`/api/voice/profiles/${id}/preview`, {
     method: "POST",

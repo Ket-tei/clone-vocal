@@ -135,6 +135,10 @@
   /* Reperes des seuils reels du backend : -18 dBFS et -1 dBFS. */
   .vumetre-seuil { @apply absolute top-0 h-full; width: 2px; background: rgba(255,255,255,.45); }
 
+  /* --- Progression de la creation de la voix ------------------------- */
+  .progression { @apply relative w-full overflow-hidden; height: 0.75rem; background: color-mix(in srgb, var(--encre) 12%, transparent); }
+  .progression-jauge { @apply h-full origin-left; background: var(--signal); transition: transform 500ms linear; }
+
   /* --- Compteur de niveau --------------------------------------------- */
   .mesure { @apply flex items-baseline gap-2; }
   .mesure-valeur { font-family: var(--font-bricolage); font-weight: 700; font-size: 2.25rem; letter-spacing: -0.04em; line-height: 1; }
