@@ -15,6 +15,12 @@ const MOTIF = Array.from({ length: NB_BARRES }, (_, i) => {
   return Math.min(1, Math.abs(lent + rapide + grain) * 0.78 + 0.06);
 });
 
+// Chaque barre garde sa couleur, fixee par sa hauteur au repos : elle grandit
+// et se retracte sans jamais changer de teinte.
+const TEINTES = MOTIF.map((h) =>
+  h > 0.88 ? "var(--brulure)" : h > 0.62 ? "var(--eclat)" : "var(--signal)"
+);
+
 // Chaque barre a sa propre phase, pour que l'onde ne respire pas d'un bloc.
 const DEPHASAGE = MOTIF.map((_, i) => Math.sin(i * 78.233) * Math.PI);
 
@@ -64,6 +70,7 @@ export function Onde({ className = "" }: { className?: string }) {
     observateur.observe(cadre);
 
     let frame = 0;
+    let decalagePrecedent = 0;
     const debut = performance.now();
     const boucle = (maintenant: number) => {
       frame = requestAnimationFrame(boucle);
@@ -71,11 +78,16 @@ export function Onde({ className = "" }: { className?: string }) {
       const t = (maintenant - debut) / 1000;
       const parcours = t * VITESSE;
       const decalage = Math.floor(parcours / PAS);
+      // Les couleurs ne bougent qu'avec le motif, quand il avance d'une barre.
+      const recolorer = decalage !== decalagePrecedent;
+      decalagePrecedent = decalage;
       groupe.setAttribute("transform", `translate(${parcours - decalage * PAS} 0)`);
       barres.forEach((barre, j) => {
-        const { y, hauteur } = geometrie(niveau(indiceMotif(j, decalage), t));
+        const indice = indiceMotif(j, decalage);
+        const { y, hauteur } = geometrie(niveau(indice, t));
         barre.setAttribute("y", String(y));
         barre.setAttribute("height", String(hauteur));
+        if (recolorer) barre.style.fill = TEINTES[indice];
       });
     };
     frame = requestAnimationFrame(boucle);
@@ -93,9 +105,10 @@ export function Onde({ className = "" }: { className?: string }) {
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <g style={{ fill: "var(--signal)" }}>
+      <g>
         {Array.from({ length: NB_BARRES + 1 }, (_, j) => {
-          const { y, hauteur } = geometrie(niveau(indiceMotif(j, 0), 0));
+          const indice = indiceMotif(j, 0);
+          const { y, hauteur } = geometrie(niveau(indice, 0));
           return (
             <rect
               key={j}
@@ -103,6 +116,7 @@ export function Onde({ className = "" }: { className?: string }) {
               y={arrondi(y)}
               width={2.4}
               height={arrondi(hauteur)}
+              style={{ fill: TEINTES[indice] }}
             />
           );
         })}
