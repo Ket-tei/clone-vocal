@@ -103,3 +103,11 @@ def test_preview_profil_inconnu_donne_404(client):
         "/api/voice/profiles/inexistant/preview", json={"text": "Bonjour."}
     )
     assert r.status_code == 404
+
+
+def test_status_indique_si_le_modele_vocal_est_pret(client):
+    """L'interface estime la duree de creation de la voix : un premier
+    chargement du modele prend plusieurs minutes, une synthese seule non."""
+    reponse = client.get("/api/voice/status")
+    assert reponse.status_code == 200
+    assert reponse.json() == {"modele_charge": True}

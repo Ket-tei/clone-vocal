@@ -36,6 +36,12 @@ def _analyser(contenu: bytes):
     finally:
         chemin.unlink(missing_ok=True)
 
+@router.get("/status")
+def statut(tts: TtsEngine = Depends(get_tts)) -> dict:
+    # L'interface s'en sert pour estimer la duree de creation de la voix : le
+    # premier chargement du modele prend plusieurs minutes, une synthese non.
+    return {"modele_charge": bool(getattr(tts, "modele_charge", True))}
+
 @router.post("/analyze")
 async def analyser(file: UploadFile = File(...)) -> dict:
     metriques = _analyser(await file.read())

@@ -19,16 +19,18 @@ def _store() -> VoiceStore:
 @lru_cache
 def _llm() -> LlmClient:
     settings = get_settings()
-    tier = select_tier(detect_vram_gb())
-    return OllamaClient(settings.ollama_url, tier.llm_model, settings.ollama_timeout_s)
+    modele = settings.llm_model or select_tier(detect_vram_gb()).llm_model
+    return OllamaClient(settings.ollama_url, modele, settings.ollama_timeout_s)
 
 @lru_cache
 def _tts() -> TtsEngine:
-    return get_engine(get_settings().tts_engine)
+    settings = get_settings()
+    return get_engine(settings.tts_engine, settings.torch_device)
 
 @lru_cache
 def _stt() -> Transcriber:
-    return get_transcriber(get_settings().stt_engine)
+    settings = get_settings()
+    return get_transcriber(settings.stt_engine, settings.torch_device)
 
 def get_store() -> VoiceStore:
     return _store()

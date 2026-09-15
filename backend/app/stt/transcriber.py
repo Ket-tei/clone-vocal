@@ -1,8 +1,6 @@
-import tempfile
-from pathlib import Path
 from typing import Protocol
 
-MODELE_KYUTAI = "kyutai/stt-1b-en_fr"
+MODELE_KYUTAI = "kyutai/stt-1b-en_fr-trfs"
 
 class Transcriber(Protocol):
     def transcribe(self, wav_bytes: bytes) -> str: ...
@@ -21,46 +19,51 @@ class FakeTranscriber:
         return self._reponses.pop(0) if self._reponses else ""
 
 class KyutaiTranscriber:
-    """STT Kyutai en process, par lot. Le tour par tour rend le streaming inutile."""
+    """STT Kyutai en process, par lot, via transformers (GPU ou CPU)."""
 
     def __init__(self, device: str = "cuda") -> None:
         self.device = device
+        self._processeur = None
         self._modele = None
 
     def _charger(self):
         if self._modele is None:
-            from moshi.models import loaders  # import tardif volontaire
+            # Import tardif volontaire : transformers et torch coutent cher.
+            from transformers import (
+                KyutaiSpeechToTextForConditionalGeneration,
+                KyutaiSpeechToTextProcessor,
+            )
 
-            self._modele = loaders.get_stt_model(MODELE_KYUTAI, device=self.device)
-        return self._modele
+            self._processeur = KyutaiSpeechToTextProcessor.from_pretrained(MODELE_KYUTAI)
+            self._modele = KyutaiSpeechToTextForConditionalGeneration.from_pretrained(
+                MODELE_KYUTAI, torch_dtype="auto"
+            ).to(self.device)
+        return self._processeur, self._modele
 
     def transcribe(self, wav_bytes: bytes) -> str:
         if not wav_bytes:
             raise ValueError("L'audio reçu est vide.")
-        modele = self._charger()
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(wav_bytes)
-            chemin = Path(f.name)
-        try:
-            # f est deja referme ici (fin du bloc with) : sous Windows, un
-            # NamedTemporaryFile(delete=False) reste verrouille tant qu'il
-            # n'est pas explicitement ferme, et la bibliotheque de
-            # transcription ne pourrait pas le relire.
-            texte = modele.transcribe_file(str(chemin))
-            # On ne suppose pas le type de retour d'une bibliotheque qu'on ne
-            # peut pas inspecter sans GPU : conversion defensive en str.
-            # None (silence, aucune parole detectee) est un resultat legitime
-            # et doit rendre une chaine vide, pas la chaine litterale "None"
-            # qui partirait comme fausse question au LLM des taches 10-12.
-            if texte is None:
-                return ""
-            return str(texte).strip()
-        finally:
-            chemin.unlink(missing_ok=True)
+        import io
 
-def get_transcriber(nom: str) -> Transcriber:
+        import numpy as np
+        import soundfile as sf
+
+        processeur, modele = self._charger()
+        signal, sr = sf.read(io.BytesIO(wav_bytes), dtype="float32", always_2d=True)
+        signal = signal.mean(axis=1)
+        taux = processeur.feature_extractor.sampling_rate
+        if sr != taux:
+            import librosa
+
+            signal = librosa.resample(signal, orig_sr=sr, target_sr=taux)
+        entrees = processeur(audio=np.asarray(signal, dtype=np.float32)).to(modele.device)
+        jetons = modele.generate(**entrees)
+        texte = processeur.batch_decode(jetons, skip_special_tokens=True)
+        return (texte[0] if texte else "").strip()
+
+def get_transcriber(nom: str, device: str = "cuda") -> Transcriber:
     if nom == "fake":
         return FakeTranscriber([])
     if nom == "kyutai":
-        return KyutaiTranscriber()
+        return KyutaiTranscriber(device)
     raise ValueError(f"Moteur de transcription inconnu : {nom!r}")

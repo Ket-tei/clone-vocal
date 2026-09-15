@@ -16,8 +16,14 @@ class Settings(BaseSettings):
     # Moteurs a utiliser. Les valeurs par defaut sont celles de production ;
     # "fake" permet de faire tourner l'application sur une machine sans GPU
     # (demonstration d'interface), ou la synthese rend un audio silencieux.
-    tts_engine: str = "chatterbox"
+    # chatterbox_mtl : Chatterbox multilingue, en francais ; chatterbox : modele anglais.
+    tts_engine: str = "chatterbox_mtl"
     stt_engine: str = "kyutai"
+    # Modele Ollama impose, sans passer par la detection de VRAM NVIDIA
+    # (utile sur une carte AMD, qu'Ollama exploite via Vulkan).
+    llm_model: str | None = None
+    # Peripherique torch du TTS et du STT : "cpu" sans GPU NVIDIA.
+    torch_device: str = "cuda"
 
     @property
     def voices_dir(self) -> Path:

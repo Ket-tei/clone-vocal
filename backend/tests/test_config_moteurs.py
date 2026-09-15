@@ -15,7 +15,8 @@ def test_les_moteurs_de_production_sont_les_valeurs_par_defaut(tmp_path, monkeyp
     monkeypatch.delenv("TTS_ENGINE", raising=False)
     monkeypatch.delenv("STT_ENGINE", raising=False)
     reglages = Settings()
-    assert reglages.tts_engine == "chatterbox"
+    # Application francophone : le modele multilingue, en francais.
+    assert reglages.tts_engine == "chatterbox_mtl"
     assert reglages.stt_engine == "kyutai"
 
 
