@@ -24,6 +24,14 @@ const ETAPES = [
 
 type Etape = (typeof ETAPES)[number]["id"];
 
+const PARAM_ETAPE = "etape";
+
+/** Rang de l'etape inscrite dans l'URL ; sans parametre, c'est la premiere. */
+function rangDansUrl(): number {
+  const id = new URLSearchParams(window.location.search).get(PARAM_ETAPE);
+  return Math.max(0, ETAPES.findIndex((e) => e.id === id));
+}
+
 const BOUTON =
   "w-fit bg-[var(--signal)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
 const BOUTON_SECONDAIRE =
@@ -229,6 +237,66 @@ export default function Onboarding() {
   }
 
   const rang = ETAPES.findIndex((e) => e.id === etape);
+
+  // --- Historique du navigateur -------------------------------------------
+  // Chaque etape franchie ajoute une entree (?etape=...), de sorte que la
+  // fleche retour ramene a l'etape precedente au lieu de quitter l'onboarding.
+  // On avance toujours d'une etape a la fois : la profondeur dans l'historique
+  // est donc le rang de l'etape affichee dans l'URL.
+  const [resynchro, setResynchro] = useState(0);
+  const retourEnCours = useRef(false);
+
+  // Au rechargement, l'etat est perdu et l'on repart de l'autorisation :
+  // l'URL ne doit plus pretendre a une etape plus avancee.
+  useEffect(() => {
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  // Aligne l'historique sur l'etape affichee, quelle que soit la facon dont on
+  // y est arrive (bouton, fil d'etapes, echec qui ramene en arriere...).
+  useEffect(() => {
+    if (retourEnCours.current) return;
+    const ecart = rang - rangDansUrl();
+    if (ecart > 0) {
+      for (let i = rang - ecart + 1; i <= rang; i++) {
+        window.history.pushState(null, "", `?${PARAM_ETAPE}=${ETAPES[i].id}`);
+      }
+    } else if (ecart < 0) {
+      retourEnCours.current = true;
+      window.history.go(ecart);
+    }
+  }, [rang, resynchro]);
+
+  const surPopstate = useRef<() => void>(() => {});
+  useEffect(() => {
+    surPopstate.current = () => {
+      if (retourEnCours.current) {
+        retourEnCours.current = false;
+        setResynchro((n) => n + 1);
+        return;
+      }
+      const cible = rangDansUrl();
+      if (cible === rang) return;
+      // Fleche avant (on ne peut pas sauter une etape) ou traitement en cours :
+      // on remet l'historique d'accord avec l'etape affichee.
+      if (cible > rang || occupe) {
+        setResynchro((n) => n + 1);
+        return;
+      }
+      void revenirA(ETAPES[cible].id).finally(() => setResynchro((n) => n + 1));
+    };
+  });
+
+  // Ecouteur pose une seule fois. Le routeur Next, qui ecoute avant nous, fait
+  // un rendu synchrone pendant l'evenement : un ecouteur repose a chaque rendu
+  // serait retire en plein vol et ne recevrait jamais le retour.
+  useEffect(() => {
+    const ecouter = () => surPopstate.current();
+    window.addEventListener("popstate", ecouter);
+    return () => window.removeEventListener("popstate", ecouter);
+  }, []);
 
   return (
     <main className="flex flex-1 flex-col">

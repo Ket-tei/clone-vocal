@@ -83,15 +83,18 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
         <span className="vumetre-seuil" style={{ left: `${positionJauge(SEUIL_SATURE_DBFS)}%` }} />
       </div>
 
+      {/* Dimensions fixes : le conseil passe d'une a deux lignes et le chiffre
+          change de largeur selon la zone. Sans elles, la hauteur du bloc varie
+          et toute l'etape, centree verticalement, sautille pendant qu'on parle. */}
       <div className="flex items-end justify-between gap-4">
-        <div className="mesure">
+        <div className="mesure shrink-0">
           {/* Toujours en encre : un chiffre jaune sur le papier serait illisible. */}
-          <span className="mesure-valeur">
+          <span className="mesure-valeur inline-block min-w-[3ch]">
             {dbfs <= PLANCHER_JAUGE_DBFS ? "—" : Math.round(dbfs)}
           </span>
           <span className="mesure-unite">dBFS</span>
         </div>
-        <p className="max-w-[22ch] text-right text-[0.95rem] font-medium leading-snug">
+        <p className="flex min-h-[2.75em] w-[22ch] min-w-0 flex-col justify-end text-right text-[0.95rem] font-medium leading-snug">
           {CONSEIL[zone]}
         </p>
       </div>
