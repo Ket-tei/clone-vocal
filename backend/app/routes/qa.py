@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import binascii
 
@@ -53,7 +54,9 @@ async def emettre_phrase(
     la presentation et par la boucle question/reponse.
     """
     await websocket.send_json({"type": "sentence", "text": phrase})
-    audio = tts.synthesize(phrase, profil)
+    # Hors de la boucle d'evenements : sur CPU une phrase depasse les 20 s,
+    # et un appel bloquant faisait tomber le WebSocket (ping sans reponse).
+    audio = await asyncio.to_thread(tts.synthesize, phrase, profil)
     await websocket.send_json(
         {"type": "audio", "wav_b64": base64.b64encode(audio).decode()}
     )
@@ -173,7 +176,7 @@ async def boucle_qa(
                             {"type": "error", "message": _AUDIO_INVALIDE}
                         )
                         continue
-                    question = stt.transcribe(wav_bytes)
+                    question = await asyncio.to_thread(stt.transcribe, wav_bytes)
                 else:
                     question = entrant["text"]
 

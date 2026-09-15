@@ -307,3 +307,44 @@ async def test_l_historique_retient_ce_qui_a_ete_prononce_malgre_un_echec(
     assert any("mille euros" in c for c in corps), (
         "la phrase deja prononcee doit figurer dans l'historique du second tour"
     )
+
+def test_tts_et_stt_ne_bloquent_pas_la_boucle_d_evenements(client, wav_valide):
+    """Sur CPU, une phrase prend plus de 20 s a synthetiser. Execute sur la
+    boucle d'evenements, l'appel bloquait les pings WebSocket et la connexion
+    tombait en « keepalive ping timeout » au milieu de la presentation."""
+    import asyncio
+
+    def _sur_la_boucle() -> bool:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+        return True
+
+    appels: list[tuple[str, bool]] = []
+
+    class TtsEspion:
+        def synthesize(self, text, profile):
+            appels.append(("tts", _sur_la_boucle()))
+            return b"RIFF"
+
+    class SttEspion:
+        def transcribe(self, wav_bytes):
+            appels.append(("stt", _sur_la_boucle()))
+            return "Quel est le prix ?"
+
+    app.dependency_overrides[deps.get_tts] = lambda: TtsEspion()
+    app.dependency_overrides[deps.get_transcriber_dep] = lambda: SttEspion()
+    profil_id = _profil(client, wav_valide)
+
+    with client.websocket_connect(f"/api/qa/{profil_id}") as ws:
+        ws.send_json({"type": "context", "brief": BRIEF, "script": SCRIPT})
+        ws.send_json({"type": "present"})
+        while ws.receive_json()["type"] != "done":
+            pass
+        ws.send_json({"type": "audio", "wav_b64": base64.b64encode(b"RIFF").decode()})
+        while ws.receive_json()["type"] != "done":
+            pass
+
+    assert {nom for nom, _ in appels} == {"tts", "stt"}
+    assert not any(sur_boucle for _, sur_boucle in appels), appels
