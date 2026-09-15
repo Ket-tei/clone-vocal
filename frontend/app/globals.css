@@ -148,8 +148,24 @@
 
   /* --- Fil d'etapes : un trait qui se remplit, pas des pastilles ------- */
   .fil { @apply flex gap-1.5; }
-  .fil-segment { @apply h-1 flex-1; background: var(--trait); }
-  .fil-segment[data-fait="oui"] { background: var(--signal); }
+  /* La zone de survol deborde le trait : viser 4 px de haut serait penible. */
+  .fil-etape { @apply relative h-5 flex-1; }
+  .fil-cible { @apply absolute inset-0 block w-full text-left; }
+  button.fil-cible { cursor: pointer; }
+  button.fil-cible:disabled { cursor: wait; }
+  /* Le trait s'agrandit vers le bas par-dessus la page, sans la decaler. */
+  .fil-segment {
+    @apply absolute inset-x-0 top-2 z-10 flex h-1 items-center overflow-hidden px-2;
+    background: var(--trait);
+    color: var(--encre);
+    transition: height 150ms ease;
+  }
+  .fil-segment[data-fait="oui"] { background: var(--signal); color: #fff; }
+  .fil-nom { @apply truncate text-xs font-semibold; opacity: 0; transition: opacity 150ms ease; }
+  .fil-cible:hover .fil-segment,
+  .fil-cible:focus-visible .fil-segment { @apply h-7; }
+  .fil-cible:hover .fil-nom,
+  .fil-cible:focus-visible .fil-nom { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

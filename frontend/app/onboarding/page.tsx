@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FilEtapes } from "@/components/FilEtapes";
 import { MicLevelMeter } from "@/components/MicLevelMeter";
 import { QualityReport } from "@/components/QualityReport";
 import {
@@ -13,12 +14,27 @@ import {
 import { SCRIPT_LECTURE, webmToWav } from "@/lib/audio";
 import { CONTRAINTES_ENREGISTREMENT } from "@/lib/micro";
 
-type Etape = "autorisation" | "micro" | "lecture" | "controle" | "validation";
+const ETAPES = [
+  { id: "autorisation", nom: "Autorisation" },
+  { id: "micro", nom: "Réglage" },
+  { id: "lecture", nom: "Lecture" },
+  { id: "controle", nom: "Contrôle" },
+  { id: "validation", nom: "Validation" },
+] as const;
+
+type Etape = (typeof ETAPES)[number]["id"];
 
 const BOUTON =
   "w-fit bg-[var(--signal)] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[var(--encre)] disabled:opacity-50";
 const BOUTON_SECONDAIRE =
   "w-fit border-2 border-[var(--encre)] px-6 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--encre)] hover:text-[var(--papier)] disabled:opacity-50";
+
+const MICRO_REFUSE =
+  "Micro refusé ou introuvable. Autorisez l'accès au micro dans la barre " +
+  "d'adresse de votre navigateur, puis rechargez cette page.";
+
+const ouvrirMicro = () =>
+  navigator.mediaDevices.getUserMedia({ audio: CONTRAINTES_ENREGISTREMENT });
 
 // Vrai lorsque l'application tourne sans GPU (demonstration d'interface) :
 // la synthese rend alors un audio silencieux, il faut le dire a l'utilisateur.
@@ -43,9 +59,9 @@ export default function Onboarding() {
   const morceaux = useRef<Blob[]>([]);
   const webmBrut = useRef<Blob | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  // Identifiant du profil deja cree lors d'une tentative precedente. Sans lui,
-  // "Recommencer" laisserait un echantillon de la voix sur le disque a chaque
-  // passage : deux enregistrements = deux WAV biometriques conserves.
+  // Identifiant du profil deja cree pour l'enregistrement courant. Sans lui,
+  // refaire la lecture laisserait un echantillon de la voix sur le disque a
+  // chaque passage : deux enregistrements = deux WAV biometriques conserves.
   const profilCree = useRef<string | null>(null);
 
   useEffect(() => {
@@ -62,65 +78,96 @@ export default function Onboarding() {
 
   async function autoriserMicro() {
     try {
-      setStream(
-        await navigator.mediaDevices.getUserMedia({ audio: CONTRAINTES_ENREGISTREMENT })
-      );
+      setStream(await ouvrirMicro());
       setErreurMicro(null);
       setEtape("micro");
     } catch {
-      setErreurMicro(
-        "Micro refusé ou introuvable. Autorisez l'accès au micro dans la barre " +
-          "d'adresse de votre navigateur, puis rechargez cette page."
-      );
+      setErreurMicro(MICRO_REFUSE);
     }
-  }
-
-  function arreterMicro() {
-    stream?.getTracks().forEach((t) => t.stop());
-    setStream(null);
   }
 
   /**
-   * Repart de zero en effacant d'abord le profil deja cree. En cas d'echec on
-   * reste sur place avec un message : redemarrer en silence laisserait
+   * Efface le profil deja cree. Renvoie faux si la suppression echoue : on
+   * reste alors sur place avec un message, car continuer en silence laisserait
    * l'utilisateur croire que son ancien enregistrement a disparu.
    */
-  async function recommencer() {
-    setErreurTraitement(null);
+  async function effacerProfilCree(): Promise<boolean> {
     const ancien = profilCree.current;
-    if (ancien) {
-      setOccupe(true);
-      try {
-        await deleteProfile(ancien);
-        profilCree.current = null;
-      } catch (e) {
-        setErreurTraitement(
-          messageErreur(
-            e,
-            "Impossible de supprimer l'enregistrement précédent."
-          ) + " Votre ancienne voix est peut-être toujours sur le disque ; réessayez."
-        );
-        return;
-      } finally {
-        setOccupe(false);
-      }
+    if (!ancien) return true;
+    setOccupe(true);
+    try {
+      await deleteProfile(ancien);
+      profilCree.current = null;
+      return true;
+    } catch (e) {
+      setErreurTraitement(
+        messageErreur(e, "Impossible de supprimer l'enregistrement précédent.") +
+          " Votre ancienne voix est peut-être toujours sur le disque ; réessayez."
+      );
+      return false;
+    } finally {
+      setOccupe(false);
     }
-    setEnregistre(null);
-    setResultat(null);
-    // Le micro a ete coupe a la fin de l'enregistrement : il faut le rouvrir.
-    setEtape("autorisation");
   }
 
-  function demarrer() {
-    if (!stream) return;
+  /**
+   * Ramene a une etape deja franchie. Revenir avant le controle, c'est refaire
+   * l'enregistrement : celui en cours est abandonne sans analyse, et la voix
+   * deja creee est effacee.
+   */
+  async function revenirA(cible: Etape) {
+    if (cible === "controle") {
+      setEtape("controle");
+      return;
+    }
+    setErreurTraitement(null);
+    if (!(await effacerProfilCree())) return;
+    setEnregistre(null);
+    setResultat(null);
+
+    // Sans ses gestionnaires, l'arret ne declenche ni l'analyse ni la coupure du micro.
+    const mr = recorder.current;
+    if (mr && mr.state !== "inactive") {
+      mr.onstop = null;
+      mr.ondataavailable = null;
+      mr.stop();
+    }
+
+    if (cible === "autorisation") {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      setStream(null);
+      setEtape("autorisation");
+      return;
+    }
+
+    // Reglage ou lecture : il faut un micro ouvert. S'il a ete coupe a la fin
+    // d'un enregistrement, on le rouvre sans redemander d'autorisation.
+    let flux = streamRef.current;
+    if (!flux || flux.getTracks().some((t) => t.readyState === "ended")) {
+      try {
+        flux = await ouvrirMicro();
+      } catch {
+        setStream(null);
+        setErreurMicro(MICRO_REFUSE);
+        setEtape("autorisation");
+        return;
+      }
+      setStream(flux);
+    }
+    if (cible === "micro") setEtape("micro");
+    else demarrer(flux);
+  }
+
+  function demarrer(flux: MediaStream) {
     morceaux.current = [];
-    const mr = new MediaRecorder(stream);
+    const mr = new MediaRecorder(flux);
     mr.ondataavailable = (e) => morceaux.current.push(e.data);
     mr.onstop = () => {
       // Le flux n'est plus necessaire une fois l'enregistrement capture : on
       // coupe le micro tout de suite, avant meme de savoir si le traitement
       // reussira. Un micro qui reste ouvert n'a rien a faire ici.
-      arreterMicro();
+      flux.getTracks().forEach((t) => t.stop());
+      setStream(null);
       webmBrut.current = new Blob(morceaux.current, { type: "audio/webm" });
       void traiter(webmBrut.current);
     };
@@ -155,12 +202,14 @@ export default function Onboarding() {
     setOccupe(true);
     setErreurTraitement(null);
     try {
-      const profil = await createProfile(
-        new File([enregistre], "e.wav", { type: "audio/wav" }), "Ma voix"
-      );
-      profilCree.current = profil.id;
+      // Revenu au controle depuis la validation : la voix de cet enregistrement
+      // existe deja, la recreer laisserait un doublon sur le disque.
+      const id =
+        profilCree.current ??
+        (await createProfile(new File([enregistre], "e.wav", { type: "audio/wav" }), "Ma voix")).id;
+      profilCree.current = id;
       const audioBlob = await previewVoice(
-        profil.id,
+        id,
         "Bonjour, je suis ravi d'échanger avec vous aujourd'hui sur votre projet."
       );
       const url = URL.createObjectURL(audioBlob);
@@ -179,19 +228,17 @@ export default function Onboarding() {
     }
   }
 
-  const etapes: Etape[] = ["autorisation", "micro", "lecture", "controle", "validation"];
-  const rang = etapes.indexOf(etape);
+  const rang = ETAPES.findIndex((e) => e.id === etape);
 
   return (
     <main className="flex flex-1 flex-col">
-      {/* Fil d'etapes : un trait qui se remplit. Des pastilles numerotees
-          suggereraient un formulaire administratif ; ici c'est une prise de son. */}
       <div className="enveloppe pt-6">
-        <div className="fil" aria-label={`Étape ${rang + 1} sur ${etapes.length}`}>
-          {etapes.map((e, i) => (
-            <span key={e} className="fil-segment" data-fait={i <= rang ? "oui" : "non"} />
-          ))}
-        </div>
+        <FilEtapes
+          noms={ETAPES.map((e) => e.nom)}
+          rang={rang}
+          surRetour={(i) => void revenirA(ETAPES[i].id)}
+          bloque={occupe}
+        />
       </div>
 
       {etape === "autorisation" && (
@@ -222,34 +269,35 @@ export default function Onboarding() {
           </div>
 
           <MicLevelMeter stream={stream} />
-          <button type="button" onClick={demarrer} className={BOUTON}>
+          <button type="button" onClick={() => demarrer(stream)} className={BOUTON}>
             Commencer l&apos;enregistrement
           </button>
         </div>
       )}
 
       {etape === "lecture" && (
-        <>
-          <div className="bande-brulure">
-            <div className="enveloppe flex items-center gap-3 py-3">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-white" />
-              <p className="text-sm font-semibold">Enregistrement en cours</p>
-            </div>
-          </div>
-          <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-10">
-            <p className="text-[0.95rem] font-medium">
-              Lisez ce texte à voix haute, à votre rythme habituel.
-            </p>
-            <p className="a-lire whitespace-pre-line">{SCRIPT_LECTURE}</p>
-            <button
-              type="button"
-              onClick={() => recorder.current?.stop()}
-              className={BOUTON_SECONDAIRE}
-            >
-              J&apos;ai terminé
-            </button>
-          </div>
-        </>
+        <div className="enveloppe flex flex-1 flex-col justify-center gap-8 py-10">
+          <p
+            role="status"
+            className="flex items-center gap-2.5 text-base font-semibold text-[var(--brulure)]"
+          >
+            <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--brulure)]" />
+            Enregistrement en cours
+          </p>
+          <p className="text-[0.95rem] font-medium">
+            Lisez ce texte à voix haute, à votre rythme habituel.
+          </p>
+          {/* Toute la largeur de la colonne : les retours a la ligne du script
+              ne servent qu'a la mise en forme du code, le texte coule librement. */}
+          <p className="a-lire max-w-none">{SCRIPT_LECTURE}</p>
+          <button
+            type="button"
+            onClick={() => recorder.current?.stop()}
+            className={BOUTON}
+          >
+            J&apos;ai terminé
+          </button>
+        </div>
       )}
 
       {etape === "controle" && (
@@ -289,7 +337,7 @@ export default function Onboarding() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void recommencer()}
+                  onClick={() => void revenirA("lecture")}
                   className={BOUTON}
                 >
                   Recommencer
@@ -333,7 +381,7 @@ export default function Onboarding() {
             </button>
             <button
               type="button"
-              onClick={() => void recommencer()}
+              onClick={() => void revenirA("lecture")}
               disabled={occupe}
               className={BOUTON_SECONDAIRE}
             >
