@@ -75,3 +75,16 @@ async def test_generate_script_assemble_le_flux():
     script = await generate_script(llm, BRIEF)
     assert len(script.blocks) == 5
     assert script.blocks[4].kind == "next_step"
+
+def test_parse_accepte_les_balises_en_markdown():
+    """qwen3 8B ecrit parfois **accroche** au lieu de [accroche]."""
+    brut = (
+        "**accroche**  \nBonjour Claire.  \n\n"
+        "**[probleme]**\nVos factures coutent cher.\n\n"
+        "## solution :\nNotre outil automatise la saisie.\n\n"
+        "**preuve**\nUn client a divise son delai par quatre.\n\n"
+        "[next_step]\nOn se cale un point ?"
+    )
+    script = parse_script(brut)
+    assert [b.kind for b in script.blocks] == list(KINDS)
+    assert script.blocks[0].text == "Bonjour Claire."

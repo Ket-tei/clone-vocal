@@ -6,7 +6,15 @@ from app.llm.ollama import LlmClient, Message
 from app.meeting.brief import MeetingBrief
 
 KINDS: tuple[str, ...] = ("accroche", "probleme", "solution", "preuve", "next_step")
-_BALISE = re.compile(r"^\[([a-z_]+)\]\s*$", re.MULTILINE)
+# Balise seule sur sa ligne : [accroche] comme demande, mais aussi les
+# variantes markdown qu'un LLM local produit malgre la consigne (**accroche**,
+# **[accroche]**, ## accroche :). Il faut au moins un crochet, une etoile ou un
+# diese, et seuls les KINDS sont reconnus : une phrase ordinaire du script ne
+# peut jamais etre prise pour une balise.
+_BALISE = re.compile(
+    r"^(?=[^\n]*[\[*#])[ \t#*_]*\[?(" + "|".join(KINDS) + r")\]?[ \t*_]*:?[ \t]*$",
+    re.MULTILINE,
+)
 
 
 class ScriptBlock(BaseModel):
