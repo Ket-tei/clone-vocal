@@ -1,27 +1,38 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  SEUIL_SATURE_DBFS as SATURE,
-  SEUIL_TROP_FAIBLE_DBFS as TROP_FAIBLE,
+  PLANCHER_JAUGE_DBFS,
+  SEUIL_SATURE_DBFS,
+  SEUIL_TROP_FAIBLE_DBFS,
   niveauCrete,
+  positionJauge,
   relacher,
+  zoneNiveau,
+  type ZoneNiveau,
 } from "@/lib/micro";
 
-// Les seuils sont ceux du backend (app/audio/validation.py). Il les compare a
-// la crete de l'enregistrement : le vumetre mesure donc la crete.
-const PLANCHER_DBFS = -60;
+// La couleur dit ou en est le signal : jaune tant que c'est trop faible, bleu
+// dans la bonne plage, rouge quand ca sature.
+const TEINTE: Record<ZoneNiveau, string> = {
+  faible: "var(--eclat)",
+  correct: "var(--signal)",
+  sature: "var(--brulure)",
+};
 
-const enPourcent = (dbfs: number) =>
-  Math.max(0, Math.min(100, ((dbfs - PLANCHER_DBFS) / -PLANCHER_DBFS) * 100));
+const CONSEIL: Record<ZoneNiveau, string> = {
+  faible: "Trop faible. Rapprochez-vous du micro.",
+  correct: "Niveau correct.",
+  sature: "Trop fort. Éloignez-vous du micro.",
+};
 
 /**
  * Le vumetre est l'element central du produit : c'est lui qui dit a
- * l'utilisateur si son enregistrement sera accepte. Il est donc traite en
- * grand, avec les deux seuils du backend dessines a leur place exacte, et
- * non comme une barre de progression decorative.
+ * l'utilisateur si son enregistrement sera accepte. Il mesure la crete, comme
+ * le controle qualite du backend, et ses deux reperes sont les seuils du
+ * backend, places pour que la bonne plage occupe le centre de la jauge.
  */
 export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
-  const [dbfs, setDbfs] = useState(PLANCHER_DBFS);
+  const [dbfs, setDbfs] = useState(PLANCHER_JAUGE_DBFS);
   const frame = useRef<number>(0);
 
   useEffect(() => {
@@ -34,7 +45,7 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
     analyser.fftSize = 1024;
     ctx.createMediaStreamSource(stream).connect(analyser);
     const tampon = new Float32Array(analyser.fftSize);
-    let affiche = PLANCHER_DBFS;
+    let affiche = PLANCHER_JAUGE_DBFS;
     let precedent = performance.now();
 
     const boucle = (maintenant: number) => {
@@ -52,35 +63,36 @@ export function MicLevelMeter({ stream }: { stream: MediaStream | null }) {
     };
   }, [stream]);
 
-  const sature = dbfs >= SATURE;
-  const faible = dbfs <= TROP_FAIBLE;
-  const teinte = sature ? "var(--brulure)" : faible ? "var(--signal)" : "var(--eclat)";
-  const conseil = sature
-    ? "Trop fort. Éloignez-vous du micro."
-    : faible
-      ? "Trop faible. Rapprochez-vous du micro."
-      : "Niveau correct.";
+  const zone = zoneNiveau(dbfs);
 
   return (
     <div className="space-y-4">
-      <div className="vumetre" role="meter" aria-valuenow={Math.round(dbfs)} aria-valuemin={-60} aria-valuemax={0} aria-label="Niveau du micro">
+      <div
+        className="vumetre"
+        role="meter"
+        aria-valuenow={Math.round(dbfs)}
+        aria-valuemin={PLANCHER_JAUGE_DBFS}
+        aria-valuemax={0}
+        aria-label="Niveau du micro"
+      >
         <div
           className="vumetre-jauge"
-          style={{ background: teinte, transform: `scaleX(${enPourcent(dbfs) / 100})` }}
+          style={{ background: TEINTE[zone], transform: `scaleX(${positionJauge(dbfs) / 100})` }}
         />
-        <span className="vumetre-seuil" style={{ left: `${enPourcent(TROP_FAIBLE)}%` }} />
-        <span className="vumetre-seuil" style={{ left: `${enPourcent(SATURE)}%` }} />
+        <span className="vumetre-seuil" style={{ left: `${positionJauge(SEUIL_TROP_FAIBLE_DBFS)}%` }} />
+        <span className="vumetre-seuil" style={{ left: `${positionJauge(SEUIL_SATURE_DBFS)}%` }} />
       </div>
 
       <div className="flex items-end justify-between gap-4">
         <div className="mesure">
-          <span className="mesure-valeur" style={{ color: teinte }}>
-            {dbfs <= PLANCHER_DBFS ? "—" : Math.round(dbfs)}
+          {/* Toujours en encre : un chiffre jaune sur le papier serait illisible. */}
+          <span className="mesure-valeur">
+            {dbfs <= PLANCHER_JAUGE_DBFS ? "—" : Math.round(dbfs)}
           </span>
           <span className="mesure-unite">dBFS</span>
         </div>
         <p className="max-w-[22ch] text-right text-[0.95rem] font-medium leading-snug">
-          {conseil}
+          {CONSEIL[zone]}
         </p>
       </div>
     </div>
